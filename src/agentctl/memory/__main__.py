@@ -57,6 +57,17 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("stats", help="库内计数与游标")
 
+    p_b = sub.add_parser("backup", help="在线备份 episode 库（一致快照 + manifest + 保留策略）")
+    p_b.add_argument("--keep", type=int, default=14, help="保留最近 N 份自动备份（默认 14）")
+    p_b.add_argument("--out", default=None, help="备份目录（默认 <库目录>/backups）")
+
+    p_dd = sub.add_parser("dedup", help="合并历史 dedup_key 重复行（保留最早 id，累加 recurrences）")
+    p_dd.add_argument("--dry-run", action="store_true", help="只统计，不写库")
+
+    p_tune = sub.add_parser("tune", help="检索策略 floor/k 扫参（只评测，写 strategy_state.json）")
+    p_tune.add_argument("--query-file", default=None, help="可选 JSONL/纯文本调参查询集")
+    p_tune.add_argument("--holdout-file", default=None, help="可选 JSONL/纯文本验收集（不参与扫参）")
+
     p_re = sub.add_parser(
         "reembed", help="v6 口径换挡：按当前连接的嵌入器全库重嵌（episodes+段摘要）"
     )
@@ -64,6 +75,14 @@ def main(argv: list[str] | None = None) -> int:
     p_re.add_argument("--device", default="cpu", help="cpu（默认，显存留给训练）/cuda")
 
     args = ap.parse_args(argv)
+
+    # backup 不需要加载嵌入器，先于 open_store 处理（否则会白加载 bge 模型）
+    if args.cmd == "backup":
+        from agentctl.memory.backup import backup_memory
+
+        _emit(backup_memory(args.db or mem.default_db_path(),
+                            keep=args.keep, out_dir=args.out))
+        return 0
 
     store = mem.open_store(args.db)
     try:
@@ -113,6 +132,14 @@ def main(argv: list[str] | None = None) -> int:
             finally:
                 st2.close()
             return 0
+        elif args.cmd == "dedup":
+            from agentctl.memory.dedup import dedup_memory
+
+            _emit(dedup_memory(store, dry_run=args.dry_run))
+        elif args.cmd == "tune":
+            from agentctl.memory.strategy import tune
+
+            _emit(tune(store, query_file=args.query_file, holdout_file=args.holdout_file))
         elif args.cmd == "stats":
             rows = list(store.iter_episode_rows())
             by_outcome: dict[str, int] = {}

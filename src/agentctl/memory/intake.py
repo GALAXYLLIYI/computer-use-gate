@@ -150,6 +150,27 @@ def record_experience(
             "dedup_key": key, "subject": subject, "actor": actor}
 
 
+def _flatten_first_cred(old_cred: Any, max_depth: int = 10000) -> Any:
+    """把历史 first_cred 嵌套链压平成最早一层的浅拷贝。
+
+    2026-11-03 生产事故：每次合并都把整个 old_verify["cred"] 塞进
+    first_cred，合并 N 次就嵌套 N 层；id=8664 已到 2995 层、verify 339KB，
+    再合并一次 json.dumps 直接 RecursionError，循环写回全失败。
+    """
+    cur = old_cred
+    depth = 0
+    while isinstance(cur, dict) and "first_cred" in cur and depth < max_depth:
+        nxt = cur.get("first_cred")
+        if not isinstance(nxt, dict):
+            break
+        cur = nxt
+        depth += 1
+    if not isinstance(cur, dict):
+        return cur
+    keep = ("session", "task", "round", "first_t", "file", "anchor", "artifact", "verdict")
+    return {k: cur[k] for k in keep if k in cur}
+
+
 def _merge_into(store, row, *, kind, obs, act, result, verify, outcome, key) -> dict:
     """命中已有条目：只累加计数 + 把结论/出处更新为最新，历史语义不动。"""
     ep_id = int(row["id"])
@@ -160,7 +181,7 @@ def _merge_into(store, row, *, kind, obs, act, result, verify, outcome, key) -> 
     cred = dict(v_new.get("cred") or {})
     cred.setdefault("first_t", row["t"])          # 首次写入时间（出处链的锚）
     if old_verify.get("cred") and "first_cred" not in cred:
-        cred["first_cred"] = old_verify["cred"]   # 首次出处留档
+        cred["first_cred"] = _flatten_first_cred(old_verify["cred"])   # 首次出处留档（压平）
     v_new["cred"] = cred
 
     new_text = contract.episode_text(kind, obs, act, result)
