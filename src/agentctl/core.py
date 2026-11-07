@@ -7601,6 +7601,170 @@ def _t_memory(a):
     return env(code=gate.CODE_NO_CTRL, warning="未知 action（合法：query / recall / stats）")
 
 
+def _retina_state_dir(args: dict) -> str:
+    from agentctl import retina
+
+    return os.fspath(args.get("state_dir") or retina.DEFAULT_STATE_DIR)
+
+
+def _retina_read_gate(args: dict, note: str) -> dict:
+    """读侧闸门（P1）：先走通行证；通行证不可用时看**采集期授权**。
+
+    ★ 边界（别越线）：采集期授权只覆盖**已在有效授权下采集到的数据**
+      （状态元数据 / 事件流 / 已采集帧），**不含新感知** ——
+      ctl_shot / ctl_screen / ctl_tree 仍然必须有当下的通行证。
+    ★ 到期即失效：采集期凭据由 daemon 自己在到期时作废（并自停采集）。
+    """
+    from agentctl import retina
+
+    try:
+        why = gate.require_any(gate.PERCEIVE, note, count=False)
+        return {"source": "通行证", "why": why, "session": None}
+    except gate.GateDenied as e:
+        sess = retina.session_info(_retina_state_dir(args))
+        if sess.get("valid"):
+            return {
+                "source": "采集期授权",
+                "why": ("通行证不可用（%s）；改用采集期授权读**已采集数据**，"
+                        "有效至 %s" % (e, sess.get("expires"))),
+                "session": sess,
+            }
+        raise
+
+
+def t_retina_status(args: dict) -> dict:
+    """读取 retina daemon 的 state.json（只读；不启动/停止 daemon）。"""
+    try:
+        auth = _retina_read_gate(args, "retina status")
+    except gate.GateDenied as e:
+        return env(code=e.code, warning="未获授权 —— " + str(e))
+    from agentctl import retina
+
+    state_dir = _retina_state_dir(args)
+    state_path = os.path.join(state_dir, "state.json")
+    if not os.path.isfile(state_path):
+        return env(code=gate.CODE_NO_CTRL,
+                   data={"state_dir": state_dir, "exists": False, "auth": auth},
+                   warning="retina state.json 不存在；daemon 没启动，或 state_dir 不对")
+    try:
+        state = json.load(open(state_path, encoding="utf-8"))
+    except Exception as e:
+        return env(code=gate.CODE_INTERNAL,
+                   data={"state_dir": state_dir, "auth": auth},
+                   warning="retina state.json 读取失败：%s" % e)
+    pid = int(state.get("pid") or 0)
+    alive = bool(pid and retina._pid_alive(pid))
+    data = {"state_dir": state_dir, "state": state,
+            "pid": pid, "pid_alive": alive, "stale": not alive,
+            "auth": auth}
+    if not alive:
+        return env(code=gate.CODE_UNSTABLE, data=data,
+                   warning="retina daemon 已退出，state.json 是上次运行留下的")
+    return env(ok=True, code=0, data=data)
+
+
+def t_retina_changes(args: dict) -> dict:
+    """读取 retina events.jsonl，按 seq 过滤（只读；不返回图像）。"""
+    try:
+        auth = _retina_read_gate(args, "retina changes")
+    except gate.GateDenied as e:
+        return env(code=e.code, warning="未获授权 —— " + str(e))
+    state_dir = _retina_state_dir(args)
+    path = os.path.join(state_dir, "events.jsonl")
+    since = int(args.get("since") or 0)
+    limit = max(1, min(1000, int(args.get("limit") or 200)))
+    events = []
+    if os.path.isfile(path):
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if int(event.get("seq") or 0) > since:
+                        events.append(event)
+        except Exception as e:
+            return env(code=gate.CODE_INTERNAL,
+                       data={"state_dir": state_dir},
+                       warning="retina events.jsonl 读取失败：%s" % e)
+    truncated = len(events) > limit
+    if truncated:
+        events = events[-limit:]
+    return env(ok=True, code=0,
+               data={"state_dir": state_dir, "since": since,
+                     "count": len(events), "truncated": truncated,
+                     "events": events, "auth": auth})
+
+
+def t_retina_snapshot(args: dict) -> dict:
+    """向 retina daemon 请求最新帧/指定 seq 帧，落一张显式临时 JPEG。"""
+    try:
+        auth = _retina_read_gate(args, "retina snapshot")
+    except gate.GateDenied as e:
+        return env(code=e.code, warning="未获授权 —— " + str(e))
+    from agentctl import retina
+
+    state_dir = _retina_state_dir(args)
+    state_path = os.path.join(state_dir, "state.json")
+    if not os.path.isfile(state_path):
+        return env(code=gate.CODE_NO_CTRL,
+                   data={"state_dir": state_dir},
+                   warning="retina state.json 不存在；daemon 没启动")
+    try:
+        state = json.load(open(state_path, encoding="utf-8"))
+        pid = int(state.get("pid") or 0)
+    except Exception as e:
+        return env(code=gate.CODE_INTERNAL,
+                   data={"state_dir": state_dir},
+                   warning="retina state.json 读取失败：%s" % e)
+    if not (pid and retina._pid_alive(pid)):
+        return env(code=gate.CODE_UNSTABLE,
+                   data={"state_dir": state_dir, "pid": pid, "pid_alive": False},
+                   warning="retina daemon 已退出，不能取 snapshot")
+    rid = str(time.time_ns())
+    req_path = os.path.join(state_dir, "snapshot.request")
+    resp_path = os.path.join(state_dir, "snapshot.response")
+    try:
+        if os.path.exists(resp_path):
+            os.remove(resp_path)
+        seq = args.get("seq")
+        req = {"id": rid}
+        if seq not in (None, ""):
+            req["seq"] = int(seq)
+        tmp = req_path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(req, fh, ensure_ascii=False)
+        os.replace(tmp, req_path)
+    except Exception as e:
+        return env(code=gate.CODE_INTERNAL, warning="写 snapshot.request 失败：%s" % e)
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        time.sleep(0.05)
+        if not os.path.exists(resp_path):
+            continue
+        try:
+            resp = json.load(open(resp_path, encoding="utf-8"))
+        except Exception:
+            continue
+        if str(resp.get("id") or "") != rid:
+            continue
+        try:
+            os.remove(resp_path)
+        except Exception:
+            pass
+        if resp.get("ok"):
+            return env(ok=True, code=0, data={**resp, "auth": auth})
+        return env(code=gate.CODE_UNSTABLE, data=resp,
+                   warning="retina snapshot 失败：%s" % resp.get("error"))
+    return env(code=gate.CODE_UNSTABLE,
+               data={"state_dir": state_dir, "request_id": rid},
+               warning="retina snapshot 超时（daemon 没在 2 秒内响应）")
+
+
 TOOLS = {
     "ctl_status": t_status,
     "ctl_preflight": t_preflight,
@@ -7612,6 +7776,9 @@ TOOLS = {
     "ctl_witness": t_witness,
     "ctl_windows": t_windows,
     "ctl_shot": t_shot,
+    "ctl_retina_status": t_retina_status,
+    "ctl_retina_changes": t_retina_changes,
+    "ctl_retina_snapshot": t_retina_snapshot,
     "ctl_tree": t_tree,
     "ctl_screen": t_screen,
     "ctl_find": t_find,
@@ -7641,6 +7808,16 @@ _ACTION_TOOLS = frozenset(("ctl_click", "ctl_type", "ctl_fill", "ctl_keys",
 
 def _ev(kind: str, *, actor="", tool="", payload=None, ok=True, code=0):
     try:
+        # ★ 元素语义增强（2026-10-31，用户批准项③）：点击类命中时附 UIA name/role。
+        #   只加 element 键不改旧键；探测失败静默——增益非依赖（memory/element_semantics.py）。
+        if kind in ("click", "fill") and isinstance(payload, dict) and payload.get("hwnd"):
+            try:
+                from agentctl.memory.element_semantics import enrich_timeline_payload
+                _xy = payload.get("xy")
+                if isinstance(_xy, (list, tuple)) and len(_xy) >= 2:
+                    payload = enrich_timeline_payload(payload, [int(_xy[0]), int(_xy[1])])
+            except Exception:
+                pass                                  # 语义探测绝不影响动作本身
         return store().append(kind, actor=actor, tool=tool, payload=payload or {},
                               ok=ok, code=code)["seq"]
     except Exception:
