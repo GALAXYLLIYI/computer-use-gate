@@ -63,15 +63,15 @@ $OutputEncoding = [Text.Encoding]::UTF8
 #   现状 = Gitee（仓库真实所在，owner 单 L）。
 #   ★ 长期宿主已定为 **Gitee**（2026-10-12 用户拍板）；如需换宿主，改这几行即可：
 #     $Owner='GALAXYLIYI'; $RepoHost='https://github.com'
-#     $DefaultZip="$RepoHost/$Owner/agent-ctl/releases/latest/download/agentctl.zip"
-#     $RepoZip="https://codeload.github.com/$Owner/agent-ctl/zip/refs/heads/main"
+#     $DefaultZip="$RepoHost/$Owner/computer-use-gate/releases/latest/download/agentctl.zip"
+#     $RepoZip="https://codeload.github.com/$Owner/computer-use-gate/zip/refs/heads/main"
 $Owner = 'GALAXYLIYI'
 $RepoHost = 'https://gitee.com'
 # ★ 2026-10-24（开源评审 P0 修复）：**Gitee 不认 GitHub 的 `releases/latest/download`**，
 #   实测 404；正确形式是带 tag 的 `/releases/download/<tag>/agentctl.zip`。
 #   源码包 `archive/main.zip` 在 Gitee 返回的是 HTML 页面（不是 zip），解压必炸 ⇒ 回退已删除。
 #   现在：先问 Gitee API 要最新 release 的 tag（匿名可用），再拼 URL；取不到就明确报错教用户 -Zip。
-$RepoSlug = "$Owner/agent-ctl"
+$RepoSlug = "$Owner/computer-use-gate"
 # >>> PY-GATE-BEGIN（M19P3-W3 · 2026-10-24 · 可执行版：判据会原样抽出这段跑）
 #   ★ 判据 `tests\_P3_W3_发布链_判据.py` 把下面这段**逐字抽出来**用 pwsh 跑：
 #     喂一个版本号进去 ⇒ 落在 [3.12, 3.13) 退出 0；落在窗口外退出**非 0**。
@@ -221,7 +221,34 @@ $tmpZip = Join-Path $tmp 'agentctl.zip'
 $extract = Join-Path $tmp 'x'
 
 function Resolve-ReleaseTag {
-    # Gitee 的 /releases/latest 返回「最新 release」；查不到再退回列表第一条。
+    # ★ 2026-11-08：Gitee 的 /releases/latest 实测会返回 v0.1.0（不是最高版本），
+    #   而且 v0.1.2 是 wheel-only、没有 agentctl.zip。这里改成：
+    #   在最近 release 里只挑**带 agentctl.zip 资产**的，按版本号取最高。
+    #   这样 v0.1.2 不会把安装链带进 404，v0.1.1 仍可安装；
+    #   以后补了 zip 的 v0.1.3 会自动成为首选。
+    $candidates = @()
+    try {
+        $list = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/$RepoSlug/releases?per_page=20" -UseBasicParsing -TimeoutSec 20
+        foreach ($r in @($list)) {
+            if (-not $r.tag_name) { continue }
+            $hasZip = $false
+            foreach ($a in @($r.assets)) {
+                if ($a.name -eq 'agentctl.zip') { $hasZip = $true; break }
+            }
+            if (-not $hasZip) { continue }
+            $ver = $null
+            try { $ver = [version]([string]$r.tag_name -replace '^[vV]', '') } catch { }
+            $candidates += [pscustomobject]@{ tag = [string]$r.tag_name; ver = $ver }
+        }
+    } catch { }
+    if ($candidates.Count -gt 0) {
+        $sorted = $candidates | Sort-Object -Property @{
+            Expression = { if ($_.ver) { $_.ver } else { [version]'0.0.0' } }
+            Descending = $true
+        }
+        return $sorted[0].tag
+    }
+    # 兜底：沿用旧行为（仅在列表/资产查询失败时）
     foreach ($api in @(
             "https://gitee.com/api/v5/repos/$RepoSlug/releases/latest",
             "https://gitee.com/api/v5/repos/$RepoSlug/releases?per_page=1")) {
