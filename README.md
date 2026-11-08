@@ -34,6 +34,8 @@ pwsh -File .\install.ps1
 ```
 
 > PyPI / `pipx` 安装正在准备中；发布后这里会改成一条命令。
+>
+> v0.1.2 目前是 **wheel-only Pre-release**；上面的 `install.ps1` 仍安装带 zip 的 **v0.1.1**，不会 404。要试最新 wheel，从 [v0.1.2 Release](https://github.com/GALAXYLLIYI/computer-use-gate/releases/tag/v0.1.2) 下载 `.whl` 后 `pip install`。
 
 ## 它到底解决什么
 
@@ -50,7 +52,8 @@ pwsh -File .\install.ps1
 - **Post-action verification**: the screen must change; “no change” and “unobservable” are not success.
 - **Evidence chain**: before/after screenshots, hash-chained log, replay video, one-key stop (`Ctrl+Alt+Home`).
 
-> v0.1.x requires Windows 10/11 x64 + Python 3.12 + git. PyPI / `pipx` install is in progress.
+> v0.1.x requires Windows 10/11 x64 + Python 3.12 + git. PyPI / `pipx` install is in progress.<br>
+> v0.1.2 is a **wheel-only pre-release**; `install.ps1` still installs the zip-backed v0.1.1 (no 404).
 
 ---
 
