@@ -32,7 +32,7 @@ AI 不点头不动手；点错能拦；动完能验；事后能回放。
 
 ### 30 秒看懂
 
-- **默认拒绝**：装完什么都不动；你在屏幕弹窗点“允许”才放行，一张通行证 30 分钟或 60 个动作。
+- **默认拒绝**：装完什么都不动；你在屏幕弹窗输入授权密钥、点“授权”才放行，一张通行证 30 分钟或 60 个动作。
 - **五条视觉通道**：先读 Windows UI Automation，再 OCR，再 CDP，再图标反查；视觉模型默认关闭。
 - **动作后验证**：截图变了才算成功；画面没变/没测出来都不算成功。
 - **证据链**：前后截图 + 哈希链日志 + 可回放视频；`Ctrl+Alt+Home` 一键全停。
@@ -75,7 +75,7 @@ The agent does nothing until you allow it. Wrong-target actions are blocked. Eve
 
 ### What you get
 
-- **Default-deny**: nothing moves until you click Allow. A pass lasts 30 minutes or 60 actions.
+- **Default-deny**: nothing moves until you enter the authorization key and click Authorize. A pass lasts 30 minutes or 60 actions.
 - **Layered perception**: UI Automation → Windows OCR → CDP → icon matching; a VLM is a default-off last resort.
 - **Post-action verification**: the screen must change; “no change” and “unobservable” are not success.
 - **Evidence chain**: before/after screenshots, hash-chained log, replay video, one-key stop (`Ctrl+Alt+Home`).
@@ -105,7 +105,7 @@ agentctl status
 按这个顺序录，不要加旁白以外的解释：
 
 1. **错误窗口**：Agent 想点“保存”，但目标窗口不是当前窗口 → 闸门拒绝，屏幕提示“目标窗口不匹配”。
-2. **授权**：弹出授权窗口，人手点“允许”。
+2. **授权**：弹出授权窗口，人手输入授权密钥、点“授权”。
 3. **正确动作**：Agent 点中“保存”，画面变化。
 4. **验证**：显示三态判词“生效”，前后截图并排。
 5. **回放**：打开时间线，展示哈希链和回放视频。

@@ -17,7 +17,7 @@ AI 不点头不动手；点错能拦；动完能验；事后能回放。
 
 ## 30 秒看懂
 
-- **默认拒绝**：装完什么都不动；你在屏幕弹窗点“允许”才放行，一张通行证 30 分钟或 60 个动作。
+- **默认拒绝**：装完什么都不动；你在屏幕弹窗输入授权密钥、点“授权”才放行，一张通行证 30 分钟或 60 个动作。
 - **五条视觉通道**：先读 Windows UI Automation，再 OCR，再 CDP，再图标反查；视觉模型默认关闭。
 - **动作后验证**：截图变了才算成功；画面没变/没测出来都不算成功。
 - **证据链**：前后截图 + 哈希链日志 + 可回放视频；`Ctrl+Alt+Home` 一键全停。
@@ -45,7 +45,7 @@ pwsh -File .\install.ps1
 
 **A safety gate for Windows desktop agents.** The agent does nothing until you allow it. Wrong-target actions are blocked. Every action is verified and replayable.
 
-- **Default-deny**: nothing moves until you click Allow. A pass lasts 30 minutes or 60 actions.
+- **Default-deny**: nothing moves until you enter the authorization key and click Authorize. A pass lasts 30 minutes or 60 actions.
 - **Layered perception**: UI Automation → Windows OCR → CDP → icon matching; a VLM is a default-off last resort.
 - **Post-action verification**: the screen must change; “no change” and “unobservable” are not success.
 - **Evidence chain**: before/after screenshots, hash-chained log, replay video, one-key stop (`Ctrl+Alt+Home`).
@@ -66,7 +66,7 @@ pwsh -File .\install.ps1
 | 要不要显卡 | 本地视觉模型要一块好显卡 | **不要**，Windows 自带的能力就够 |
 | 怎么"看见"屏幕 | 每步截一张图丢给视觉模型去猜 | **五条通道分层**：先问 Windows，再看像素，最后才考虑模型 |
 | 能接哪个 AI | 通常绑定一家 | **任何 AI**：MCP、HTTP、命令行三种接法 |
-| 动手前问不问你 | 装好就能动 | **默认全部拒绝**，你点"允许"才放行 |
+| 动手前问不问你 | 装好就能动 | **默认全部拒绝**，你输入授权密钥、点"授权"才放行 |
 | 它说"成功了" | 动作发出去就算 | **再看一眼屏幕**，画面没变不算成功 |
 | 想叫停 | 关程序 | **`Ctrl+Alt+Home`**，立刻全停 |
 | 事后查账 | 基本没有 | **前后截图 + 防篡改日志 + 回放视频** |
@@ -314,7 +314,7 @@ AI 会自己列窗口、找控件、点击、打字，每一步都先过闸门�
 
 | 闸 | 防的是什么 | 怎么做到 |
 |---|---|---|
-| ① **通行证** | AI 偷偷动手 | 装完默认全部拒绝。屏幕弹窗由**你本人**点"允许"，一张通行证管 30 分钟或 60 个动作。AI 没法替你点这个弹窗 |
+| ① **通行证** | AI 偷偷动手 | 装完默认全部拒绝。屏幕弹窗由**你本人**输入授权密钥、点"授权"，一张通行证管 30 分钟或 60 个动作。AI 没法替你点这个弹窗 |
 | ② **租约** | 几个 AI 同时抢鼠标 | 同一时间只有一个 AI 能动手，其他的只能看 |
 | ③ **帧凭据** | 拿旧截图点新画面 | 每次点击都要带截图编号，画面已经变了就拒绝（见 [视觉是怎么实现的](#视觉是怎么实现的)） |
 | ④ **敏感窗口** | AI 去点授权弹窗 | 授权弹窗由服务端直接拦截，给坐标也点不进去 |
@@ -376,7 +376,9 @@ Get-FileHash .\agentctl.zip -Algorithm SHA256
 
 ### 3. 签发通行证，开始干活
 
-让 AI 调用 `ctl_authorize`，屏幕上会弹出授权窗口，**你本人**点"允许"。接下来 30 分钟或 60 个动作内，它可以在你授权的范围里动手。
+让 AI 调用 `ctl_authorize`，屏幕上会弹出授权窗口，**你本人**输入授权密钥、点"授权"。接下来 30 分钟或 60 个动作内，它可以在你授权的范围里动手。
+
+> 🔑 授权密钥由你本人设置和保管；磁盘上只存 PBKDF2 哈希，忘了只能本人重置，不能从文件反推。
 
 想亲自验证"默认全拒"是不是真的：
 

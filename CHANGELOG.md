@@ -30,6 +30,13 @@
   `docs/readme-first-screen-draft-20261108.md`。
 - 新增 50 任务 Windows benchmark 规格：`docs/benchmark-50-20261108.md`。
 
+### Fixed
+
+- 修复冻结版独立验证假阴性：`_cl_run` 在 `sys.frozen` 下改用
+  `AgentCtl.exe legacy <script>`，不再把 `-X utf8` 传给 exe。旧实现会让
+  `verify_expect` 动作已经 `met`、独立验证却返回 `unknown`（rc=4 + 旧 notices）。
+  回归：`tests/检验_verify_frozen_cmd.py`。
+
 ### Added
 
 **M20 · core 甲案：判决层「加长观测」**
