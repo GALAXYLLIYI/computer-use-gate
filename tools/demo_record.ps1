@@ -127,7 +127,7 @@ Write-Host ''
 Write-Host 'Cue card (the recording starts in 5 seconds):' -ForegroundColor Cyan
 Write-Host '  0-10s  Show the desktop and the AgentCtl border.'
 Write-Host '  10-25s Agent tries to click Save while the target window is wrong -> gate rejects.'
-Write-Host '  25-35s Authorization popup -> YOU click Allow.'
+Write-Host '  25-35s Authorization popup -> YOU enter the key and click Authorize.'
 Write-Host '  35-50s Agent clicks Save -> screen changes -> verdict "effective".'
 Write-Host '  50-62s Show timeline / hash chain / replay.'
 Write-Host '  62-72s Press Ctrl+Alt+Home -> border goes dark.'

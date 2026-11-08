@@ -2564,9 +2564,24 @@ def _verify_py():
     return None
 
 
+def _cl_cmd(py: str, argv: list) -> list:
+    """判定器的启动命令。
+
+    ★ 2026-11-08 真机 bug：冻结版里 ``sys.executable`` 是 ``AgentCtl.exe``，
+      不是 ``python.exe``。旧实现直接拼 ``[sys.executable, "-X", "utf8", py]``，
+      实际执行成了 ``AgentCtl.exe -X utf8 验动作.py check ...`` —— 它把参数
+      当成 CLI 子命令，打印 cli.py 帮助并返回 4，于是动作已经 ``met``，
+      独立验证却永远 ``unknown``。冻结版必须走已有的 ``legacy <script>``
+      入口：它用 runpy 在同一份冻结 Python 里跑脚本，并透传脚本的退出码。
+    """
+    if getattr(sys, "frozen", False):
+        return [sys.executable, "legacy", py] + list(argv)
+    return [sys.executable, "-X", "utf8", py] + list(argv)
+
+
 def _cl_run(py: str, argv: list, timeout: int = 300):
     """跑一次判定器，返回 (rc, 合并输出)。判定口径由脚本自己负责，这里不解释。"""
-    p = subprocess.run([sys.executable, "-X", "utf8", py] + list(argv),
+    p = subprocess.run(_cl_cmd(py, argv),
                        capture_output=True, text=True, encoding="utf-8",
                        errors="replace", timeout=timeout)
     return p.returncode, (p.stdout or "") + (p.stderr or "")
