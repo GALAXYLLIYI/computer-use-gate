@@ -96,6 +96,14 @@ tools/*
 !tools/sync_contract.py
 #   tools\demo_record.ps1 —— 60 秒 demo 录制脚本（ffmpeg gdigrab）。
 !tools/demo_record.ps1
+#   tools\setup_clean_demo.ps1 / restore_clean_demo.ps1 —— 干净演示桌面 + 恢复。
+!tools/setup_clean_demo.ps1
+!tools/restore_clean_demo.ps1
+#   tools\hide_private_windows.ps1 / restore_private_windows.ps1 —— 录屏前隐藏隐私窗口。
+!tools/hide_private_windows.ps1
+!tools/restore_private_windows.ps1
+#   tools\setup_demo_windows.ps1 —— 只保留计算器/画图的干净演示桌面。
+!tools/setup_demo_windows.ps1
 #   ⑦ tools\dev_env.ps1 —— 贡献者一键开发环境（建 .venv、装依赖、跑无桌面依赖的闸门）。
 #      · docs\开发环境.md 与 README 的「开发环境」一节都指向它 ⇒ 不在仓 = 悬空引用。
 #      · 依赖：只用标准库 + pip ⇒ 依赖齐。
