@@ -28,6 +28,25 @@
 
 ## 录制命令建议
 
+推荐用仓库里的录制脚本：
+
+```powershell
+# 先 dry-run，确认区域和参数
+pwsh -File .\tools\demo_record.ps1 -DryRun
+
+# 正式录制：建议先 Win+Ctrl+D 新建干净虚拟桌面
+pwsh -File .\tools\demo_record.ps1
+```
+
+脚本会：
+
+- 计算屏幕物理分辨率，录 1920×1080 居中区域
+- 打开记事本 + 计算器
+- 录 75 秒，自动最小化终端，避免录进脚本窗口
+- 自动生成 `assets/demo-60s.mp4` 和 `assets/demo-60s.gif`
+
+也可以手动录：
+
 ```powershell
 # 1. 确认默认拒绝
 & "$env:LOCALAPPDATA\AgentCtl\agentctl.cmd" status
