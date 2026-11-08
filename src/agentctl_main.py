@@ -117,6 +117,13 @@ def main() -> int:
         if not os.path.exists(script):
             print(f"找不到脚本：{script}")
             return 2
+        # ★ 2026-11-04：runpy 不会自动把脚本目录放进 sys.path。
+        #   打包后 sys.path 只有 exe 自己的目录，legacy_tools 里的
+        #   `import gate_lock` / `import gate` 会全部 ModuleNotFoundError
+        #   （ctl_authorize 恰好因此拉不起 auth_popup）。这里显式补上。
+        _script_dir = os.path.dirname(os.path.abspath(script))
+        if _script_dir and _script_dir not in sys.path:
+            sys.path.insert(0, _script_dir)
         sys.argv = [script] + list(argv[2:])
         runpy.run_path(script, run_name="__main__")
         return 0

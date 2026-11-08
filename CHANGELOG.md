@@ -18,6 +18,18 @@
 
 ## [Unreleased] — 未发布
 
+### Packaging / release（v0.1.2 准备）
+
+- 修复 `pip install` 硬阻塞：移除与 PEP 639 `license = "Apache-2.0"` 冲突的旧式
+  `License :: OSI Approved :: Apache Software License` classifier；新版 setuptools 不再拒绝构建。
+- 新增 console script：`agentctl = "agentctl.cli:main"`；安装后直接有 `agentctl` 命令。
+- 新增 `src/agentctl/__main__.py`；`python -m agentctl` 可用。
+- 统一发布名：PyPI/仓库名 `computer-use-gate`，命令 `agentctl`，import 包 `agentctl`。
+- `requires-python` 收紧为 `>=3.12,<3.13`，与 `install.ps1` 的 cp312 vendor wheel 约束一致。
+- README 第一屏改为“30 秒看懂 + 30 秒试一下”，完整英文入口与 demo 脚本见
+  `docs/readme-first-screen-draft-20261108.md`。
+- 新增 50 任务 Windows benchmark 规格：`docs/benchmark-50-20261108.md`。
+
 ### Added
 
 **M20 · core 甲案：判决层「加长观测」**

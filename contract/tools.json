@@ -1481,6 +1481,90 @@
         "additionalProperties": false
       },
       "returns": "统一信封。query→data.结果={hits:[{source,score,t,kind,obs,subject,outcome,recurrences,actor,verify,…}],workflows}；recall→data.结果={recalled,n,hits:[{…,recurrences,actor}],block}；stats→data={episodes,segments_live,harvest_cursor_seq,…}。★ v5 起每条命中带 `recurrences`（这条经验被写回/验证过多少次）与 `actor`（谁写的）；recall 的 block 逐行显示 `×N` 与 `[actor]`。"
+    },
+    {
+      "name": "ctl_retina_status",
+      "title": "连续视觉状态",
+      "description": "读取 retina daemon 的 state.json：pid、seq、ring 帧数/字节数、latest 元数据、稳定计数、last_error。只读；不启动/停止 daemon。",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "gate": "A",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "state_dir": {
+            "type": "string",
+            "description": "可选，retina 状态目录；缺省 %LOCALAPPDATA%/AgentCtl/retina"
+          }
+        },
+        "additionalProperties": false
+      },
+      "returns": "{ ok, pid, pid_alive, stale, state, error? }；stale=true 表示 state.json 是上次运行留下的。"
+    },
+    {
+      "name": "ctl_retina_changes",
+      "title": "连续视觉事件",
+      "description": "读取 retina events.jsonl，按 seq 过滤 change/stable/blank 事件。只读；返回结构化事件，不返回图像。",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "gate": "A",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "since": {
+            "type": "integer",
+            "default": 0,
+            "description": "只返回 seq > since 的事件"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 200,
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "state_dir": {
+            "type": "string",
+            "description": "可选，retina 状态目录；缺省 %LOCALAPPDATA%/AgentCtl/retina"
+          }
+        },
+        "additionalProperties": false
+      },
+      "returns": "{ since, count, truncated, events:[{seq,ts,kind,bbox,ratio,stable_for_ms,version,source,scale}] }"
+    },
+    {
+      "name": "ctl_retina_snapshot",
+      "title": "连续视觉取帧",
+      "description": "向 retina daemon 请求最新帧或指定 seq 帧，daemon 在受控目录写一张显式 JPEG。只读查询，不改变采集状态；最多保留最近 20 张。",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "gate": "A",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "description": "可选；缺省取最新帧。只接受 ring 里仍保留的 seq。"
+          },
+          "state_dir": {
+            "type": "string",
+            "description": "可选，retina 状态目录；缺省 %LOCALAPPDATA%/AgentCtl/retina"
+          }
+        },
+        "additionalProperties": false
+      },
+      "returns": "{ ok, id, seq, path, width, height, ts, scale }；超时/daemon 退出返回 code=5。"
     }
   ],
   "_2026-10-29_记忆层v5": "episodes 加 recurrences / source / dedup_key / actor 四列（schema v5，幂等迁移 + 开库口径自愈）；写入侧新增 src/agentctl/memory/intake.py：record_experience（按 (subject,kind,obs,target,outcome) 去重合并，命中即 recurrences+1 并刷新结论）、ingest_lessons（教训 JSONL 适配器，带出处强制 + 游标断点续收 + promote 收尾）、CLI `python -m agentctl.memory record-lessons <file>`。★ 工具面**故意不加 actor 入参**：actor 是写入侧归因，检索侧不按 actor 过滤——机器仓内跨宿主互相可见（ZCode 踩的坑 DSH 干活前该看到），加了过滤参数反而诱导调用方按宿主切视野，把「扩展归因」变成「拆仓」。★ 契约 v6→v7 的原因：returns 多了两个出参（recurrences/actor），不改入参。",
