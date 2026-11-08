@@ -7978,6 +7978,10 @@ def dispatch(tool: str, args: dict, *, actor: str = "", human: bool = False) -> 
 def tool_list() -> list[dict]:
     """给 MCP tools/list 与 CLI --help 用。schema 以 contract\tools.json 为唯一口径。"""
     p = os.path.join(ROOT, "contract", "tools.json")
+    if not os.path.exists(p):
+        # wheel / pipx install: the repository root is absent, so use the
+        # packaged copy synced by tools/sync_contract.py.
+        p = os.path.join(SRC_DIR, "contract", "tools.json")
     out = []
     try:
         spec = json.load(open(p, encoding="utf-8"))

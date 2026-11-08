@@ -1,40 +1,56 @@
-<div align="center">
-
 # computer-use-gate
 
-## Windows 版 Computer Use
+**Windows 桌面 Agent 的安全闸。**<br>
+AI 不点头不动手；点错能拦；动完能验；事后能回放。
 
-### 无需显卡 · 任何 AI 都能接 · 你不点头它不动手
-
-**真正让你感受一下 Windows 版的 Computer Use。**
-
-**让你的 AI 真正在 Windows 上动手：看屏幕、点按钮、打字、切窗口、操作网页。**
-**每一下都要你授权，每一下都留证据，按一个键全部停下。**
+> 🎬 60 秒 demo 正在录制：错误窗口被拦 → 授权 → 动作验证 → 哈希链 → 急停。<br>
+> 分镜脚本见 [`docs/demo-60s-script.md`](docs/demo-60s-script.md)。
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 ![Platform](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D6)
 ![GPU](https://img.shields.io/badge/GPU-不需要-brightgreen)
 ![MCP](https://img.shields.io/badge/MCP-stdio%20%7C%20HTTP-8A2BE2)
-![Vision](https://img.shields.io/badge/视觉-5条通道分层实现-00A4A6)
 ![Status](https://img.shields.io/badge/status-0.x%20实验版-orange)
 
-[5 分钟上手](#5-分钟上手) · [任何 AI 都能接](#任何-ai-都能接) · [为什么不要显卡](#为什么不要显卡) · [视觉是怎么实现的](#视觉是怎么实现的) · [为什么敢让它动手](#为什么敢让它动手)
+**给谁用**：在 Windows 上让 AI 操作桌面的开发者、研究者、自动化团队。<br>
+**不做什么**：不做无人值守批量点击，不绕过验证码/风控，不支援 Linux/macOS。
 
-*Computer Use for Windows. No GPU. Works with any agent via MCP, HTTP or CLI. Default-deny, evidence for every action, one-key emergency stop.*
+## 30 秒看懂
 
-</div>
+- **默认拒绝**：装完什么都不动；你在屏幕弹窗点“允许”才放行，一张通行证 30 分钟或 60 个动作。
+- **五条视觉通道**：先读 Windows UI Automation，再 OCR，再 CDP，再图标反查；视觉模型默认关闭。
+- **动作后验证**：截图变了才算成功；画面没变/没测出来都不算成功。
+- **证据链**：前后截图 + 哈希链日志 + 可回放视频；`Ctrl+Alt+Home` 一键全停。
 
-> **TL;DR (English)** — **Computer Use for Windows**, running on your own desktop: your AI agent can see the screen, click, type, switch windows and drive web pages.
-> - **No GPU needed**: controls are read via Windows UI Automation, built-in Windows OCR and browser CDP, not a local vision model.
-> - **Layered vision**: UIA first, then pixels (OCR), then icon glyph matching — a VLM (cloud GLM-4V or local Ollama) is only ever a **default-off** last resort. See [视觉是怎么实现的](#视觉是怎么实现的).
-> - **Works with any agent**: Claude Code, Codex, Gemini CLI, Cursor, Cherry Studio or your own scripts, via **MCP (stdio / HTTP)**, **HTTP API** or **CLI**.
-> - **Default-deny**: nothing moves until **you** click "Allow" on an on-screen prompt. A pass lasts 30 minutes or 60 actions.
-> - **Evidence for every action**: before/after screenshots, a hash-chained tamper-evident log, and exportable replay videos.
-> - **One-key stop**: `Ctrl+Alt+Home` halts everything immediately.
->
-> Experimental 0.x: no SLA, APIs may change. Needs **Windows 10/11 x64 + Python 3.12 + git**. Quick start: [5 分钟上手](#5-分钟上手); scope and limits: [先说清楚适用范围](#先说清楚适用范围).
->
-> *Keywords: computer-use agent · MCP server · Windows automation · desktop action gate · agent safety · audit trail · UIA grounding · Windows OCR · visual fallback.*
+## 30 秒试一下
+
+> 当前版本（v0.1.x）需要 Windows 10/11 x64 + Python 3.12 + git：
+
+```powershell
+git clone https://gitee.com/GALAXYLIYI/computer-use-gate
+cd computer-use-gate
+pwsh -File .\install.ps1
+& "$env:LOCALAPPDATA\AgentCtl\agentctl.cmd" status
+```
+
+> PyPI / `pipx` 安装正在准备中；发布后这里会改成一条命令。
+
+## 它到底解决什么
+
+> 别的方案让 Agent **能动手**；computer-use-gate 让 Agent **动手之前先过闸，动完手有证据，出事能一键停**。
+
+[为什么不是又一个 Computer Use →](#一句话说明)
+
+## English
+
+**A safety gate for Windows desktop agents.** The agent does nothing until you allow it. Wrong-target actions are blocked. Every action is verified and replayable.
+
+- **Default-deny**: nothing moves until you click Allow. A pass lasts 30 minutes or 60 actions.
+- **Layered perception**: UI Automation → Windows OCR → CDP → icon matching; a VLM is a default-off last resort.
+- **Post-action verification**: the screen must change; “no change” and “unobservable” are not success.
+- **Evidence chain**: before/after screenshots, hash-chained log, replay video, one-key stop (`Ctrl+Alt+Home`).
+
+> v0.1.x requires Windows 10/11 x64 + Python 3.12 + git. PyPI / `pipx` install is in progress.
 
 ---
 

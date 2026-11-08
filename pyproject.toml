@@ -10,11 +10,11 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-ctl"
+name = "computer-use-gate"
 dynamic = ["version"]
-description = "Windows 本机电脑控制的统一控制面（HTTP / MCP / CLI 三态同源）"
+description = "Windows desktop-agent safety gate: default-deny, verified actions, audit trail, one-key stop."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 keywords = ["windows", "automation", "mcp", "uia", "accessibility"]
@@ -22,11 +22,8 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Win32 (MS Windows)",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Desktop Environment",
 ]
@@ -36,8 +33,13 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "https://gitee.com/GALAXYLIYI/computer-use-gate"
-Repository = "https://gitee.com/GALAXYLIYI/computer-use-gate"
+Homepage = "https://github.com/GALAXYLLIYI/computer-use-gate"
+Repository = "https://github.com/GALAXYLLIYI/computer-use-gate"
+Gitee = "https://gitee.com/GALAXYLIYI/computer-use-gate"
+Changelog = "https://github.com/GALAXYLLIYI/computer-use-gate/blob/main/CHANGELOG.md"
+
+[project.scripts]
+agentctl = "agentctl.cli:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
@@ -45,6 +47,9 @@ package-dir = { "" = "src" }
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["agentctl*"]
+
+[tool.setuptools.package-data]
+agentctl = ["contract/*.json"]
 
 [tool.setuptools.dynamic]
 version = { attr = "agentctl.__version__" }

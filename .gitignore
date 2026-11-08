@@ -92,6 +92,8 @@ tools/*
 #      · 为什么需要单独一份：json.load 遇重复键**后者覆盖前者、不报错**；契约是 agent 直接读的
 #        API 说明，静默少一条工具比直接报错更坏。
 !tools/check_contract.py
+#   tools\sync_contract.py —— 把根契约同步进包内副本；wheel 打包前必须跑。
+!tools/sync_contract.py
 #   ⑦ tools\dev_env.ps1 —— 贡献者一键开发环境（建 .venv、装依赖、跑无桌面依赖的闸门）。
 #      · docs\开发环境.md 与 README 的「开发环境」一节都指向它 ⇒ 不在仓 = 悬空引用。
 #      · 依赖：只用标准库 + pip ⇒ 依赖齐。

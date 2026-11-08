@@ -21,6 +21,7 @@ hiddenimports = ['winrt.windows.media.ocr', 'winrt.windows.graphics.imaging', 'w
 hiddenimports += collect_submodules('winrt')
 hiddenimports += collect_submodules('uiautomation')
 hiddenimports += collect_submodules('comtypes')
+hiddenimports += ['agentctl.retina']
 
 
 a = Analysis(
@@ -49,7 +50,11 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # ★ 2026-11-04：PyInstaller 6.22 的 pyi_rth_mplconfig 在当前机器上
+    #   secure_mkdtemp() 会报「No usable temporary directory」，导致 exe 起不来。
+    #   AgentCtl 控制链路不使用 matplotlib（见 src/agentctl/_bundled_deps.py），
+    #   明确排除，避免运行时 hook 把整个程序挡在启动前。
+    excludes=['matplotlib'],
     noarchive=False,
     optimize=0,
 )
@@ -61,8 +66,8 @@ pyz = PYZ(a.pure)
 #   而 vendor 侧那份已被 C-0 移除 ⇒ 冻结构建**必须显式剔掉**，否则 C-0 在这条产物线上破功。
 #   ⇒ 剔掉后运行时走**目标机 System32 自带那份**（缺 VC++ 运行库时由 install.ps1 指路 vcredist）。
 #   ⚠ 本条**未实跑验证**：git worktree 检出里没有 vendor 的 `.pyd`（未跟踪）⇒ 冻结构建在本机跑不起来。
-a.binaries = [(k, v) for (k, v) in a.binaries
-              if os.path.basename(k).lower() != "msvcp140.dll"]
+a.binaries = [x for x in a.binaries
+              if os.path.basename(x[0]).lower() != "msvcp140.dll"]
 
 exe = EXE(
     pyz,
