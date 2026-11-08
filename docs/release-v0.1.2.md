@@ -1,6 +1,8 @@
 # v0.1.2 发布准备单 · 2026-11-08
 
 > 状态：**wheel 已构建并验证；本 Release 只发 wheel；zip 待 legacy 对齐后补。**
+> 发布态：**GitHub Pre-release**；`releases/latest` 仍指向带 zip 的 v0.1.1，
+> `install.ps1` 可正常安装，不会落到没有 zip 的 v0.1.2。
 > 原因：zip 打包被 legacy 一致性闸门拦住；仓库工作区还有未提交的 build/deploy 改动。
 
 ## 1. 产物

@@ -36,6 +36,10 @@
   `AgentCtl.exe legacy <script>`，不再把 `-X utf8` 传给 exe。旧实现会让
   `verify_expect` 动作已经 `met`、独立验证却返回 `unknown`（rc=4 + 旧 notices）。
   回归：`tests/检验_verify_frozen_cmd.py`。
+- 修复 `install.ps1` 发布链：Gitee slug 从 `agent-ctl` 改为
+  `computer-use-gate`；release 选择改为“带 `agentctl.zip` 资产的最高版本”，
+  避免 Gitee `latest` 返回 v0.1.0 / wheel-only v0.1.2 导致 404。
+  v0.1.2 GitHub Release 已标记 Pre-release，`releases/latest` 保持带 zip 的 v0.1.1。
 
 ### Added
 
