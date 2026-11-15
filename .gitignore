@@ -181,6 +181,10 @@ tests/*
 !tests/run_all.py
 !tests/check_t1_w1.py
 !tests/_*.py
+# ★ 2026-11-15：pytest 单元回归（`test_*.py`）也放行 —— 它们与上面那些自测脚本不同：
+#   零本机绝对路径、monkeypatch 夹具、换台机器照样能跑（`pytest tests` 就是靠这一套）。
+#   含绝对路径的 s2_/s3_/s4_/s5_ 脚本仍按原意忽略。
+!tests/test_*.py
 !tests/fixtures/
 !tests/fixtures/*.png
 !tests/fixtures/*.py
