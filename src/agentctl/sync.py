@@ -71,6 +71,11 @@ class LockedDict:
         with self._lock:
             return self._d.pop(key, *args)
 
+    def clear(self):
+        """清空字典（`_screen_forget(0)` 等整表失效路径用）。"""
+        with self._lock:
+            self._d.clear()
+
     def update(self, other=None, **kwargs):
         with self._lock:
             self._d.update(other or {}, **kwargs)
