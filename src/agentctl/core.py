@@ -693,17 +693,21 @@ def _ensure_border():
     ex = _border_running()
     if ex:
         return {"spawned": False, "已有边框窗": ex, "原因": "已在跑（幂等）"}
+    # ★ 2026-11-15：这里原来直接 Popen `-m agentctl.ctrl_border --follow`，
+    #   既没传 --parent-pid，也没进 KILL_ON_JOB_CLOSE 的 Job ⇒ 父进程一死，
+    #   边框就变成孤儿（2026-11-14 实测残留 8 个窗 / pid 14584，父 pid 已被
+    #   Edge 复用）。改为走 ctrl_border.start_follow()：单例、父 pid+创建时间
+    #   认亲、Job 内核腿一次拿齐；冻结态与 start_follow 同口径（跳过，不假起）。
+    if getattr(sys, "frozen", False):
+        return {"spawned": False,
+                "原因": "冻结态不支持边框子进程（与 ctrl_border.start_follow 同口径）"}
     try:
-        import subprocess as _sp                             # noqa: PLC0415
-        src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
-        if not os.path.isdir(src):
-            src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        p = _sp.Popen([sys.executable, "-X", "utf8", "-m", "agentctl.ctrl_border",
-                       "--follow"],
-                      cwd=src,
-                      stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
-                      creationflags=getattr(_sp, "CREATE_NEW_PROCESS_GROUP", 0))
-        return {"spawned": True, "pid": p.pid, "形态": "边框/角标（穿透 + WDA，不挡视野）"}
+        from agentctl import ctrl_border
+        pid = ctrl_border.start_follow("core.t_authorize")
+        if pid:
+            return {"spawned": True, "pid": pid,
+                    "形态": "边框/角标（穿透 + WDA，不挡视野；父死自收）"}
+        return {"spawned": False, "原因": "start_follow 未拉起（见边框日志）"}
     except Exception as e:
         return {"spawned": False, "原因": "起不来：%s: %s" % (type(e).__name__, e)}
 
@@ -5053,6 +5057,15 @@ def t_keys(args: dict) -> dict:
     if err:
         return err
     r = _act("keys", args, argv, scope="C")
+    # ★ 2026-11-15：契约 returns 承诺 {vk, 键名, 解析, ctrl, 次数, raw}；
+    #   原来只透传了 raw，调用方/判据只能看到空字段。这里补齐，且成功/失败都带 ——
+    #   让调用方能分辨「发的是键名 9」还是「数值 0x09（Tab）」。
+    _d = r.setdefault("data", {})
+    _d.setdefault("vk", _spec)
+    _d.setdefault("键名", _kname or "")
+    _d.setdefault("解析", why or "")
+    _d.setdefault("ctrl", bool(args.get("ctrl")))
+    _d.setdefault("次数", times)
     # ★ M16 任务单 §E（维护者 2026-10-22 12:36 实测三次复现的**判词不实**缺陷）：
     #   改前 act 的顺序是「**先**后台 PostMessage（= 真投递）→ **再**置前 precheck →
     #   precheck 拒了就回 rc=5」⇒ 契约文案说「本次**一个键都没发**」，**但键照送**
@@ -5885,8 +5898,9 @@ SCREEN_R2_MIN_INTERACTIVE = 5
 def screen_must_vlm(r1: bool, r2: bool, r3: bool) -> bool:
     """修正⑤的核心判定式：**must_vlm = not R1 and not R2 and not R3**。
 
-    三条结构化通道（CDP+DOM / UIA / OCR）**没有一条能定位到目标**时，
-    才轮得到视觉模型。写成函数而不是注释，是为了让它**能被判据说打红**。
+    两条结构通道（CDP+DOM / UIA）和 OCR 都定位不到目标时，才轮得到视觉模型。
+    注意：OCR 是像素通道，不是结构通道；它只是排在 VLM 前面的像素级兜底。
+    写成函数而不是注释，是为了让它**能被判据说打红**。
     """
     return (not r1) and (not r2) and (not r3)
 
@@ -5902,7 +5916,8 @@ def screen_channels(*, interactive_count: int, target_hit: bool,
       （见 `_cdp_probe`：/json/version 有没有应答、有没有目标页、DOM 里命不命中）。
       探测不到就**如实报 false**，绝不把「没查成」写成「查过了，没有」——
       否则 agent 会以为「DOM 已经查过了，没有」而漏掉真正存在的东西。
-    ★ R3(OCR) 仍是**只判定不接线**（wired 恒 false），理由同上。
+    ★ R3(OCR) 已接线（窗G2）：没跑或不可用时如实报 wired=false，
+      不把「没跑成」写成「跑过了，没有」。
 
     ★ **R2 = 可交互数 ≥ 阈值 ∧ 目标命中 ∧ name_trust ≠ "offset-suspect"**。
       最后那半截是 Z2 加的门槛：网页选项「疑似错位」（控件自称的字母与它在屏幕上的位置
@@ -7173,7 +7188,7 @@ def _screen_build(hwnd: int, args: dict, state=None) -> dict:
                      "conf_bbox 单列（「点得准不准」），**不被 conf_text 拖低**",
         "name_trust_口径": "high = 原生窗口；low = 网页/Chromium（name 来自 DOM/ARIA 映射，"
                            "判不出来也按 low）；offset-suspect = 网页且选项字母疑似与位置错位 "
-                           "⇒ R2 门槛不通过、这一屏必须落到 VLM",
+                           "⇒ R2 门槛不通过、这一屏先落到 R3(OCR)，OCR 也不成立才落到 VLM",
         "name_trust_依据": trust_ev,
         "uid_口径": "uid = struct_key@text_key；volatile 且未被声明（exempted=true）的节点"
                     "text_key 恒为 ~（不参与比对）；被声明（watched=true）的节点 text_key 照常实算",

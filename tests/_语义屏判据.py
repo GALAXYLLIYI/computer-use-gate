@@ -264,8 +264,13 @@ def sandbox(tmp):
     auth = os.path.join(tmp, "_auth")
     os.makedirs(auth, exist_ok=True)
     # 铺一张只读感知用的临时通行证（A 级不计数、不消耗）
+    # ★ 2026-11-15：同时写短名（src 侧 gate）与全名（legacy_tools/gate.py）两套档位。
+    #   core._legacy_env() 会把 AGENTCTL_AUTHDIR 指到本文件 ⇒ 老线 act.py 也读这张；
+    #   只写短名时老线认不出「C级 打字快捷键」⇒ 全组 code=9 假红。
     with io.open(os.path.join(auth, "auth_pass.json"), "w", encoding="utf-8") as f:
-        json.dump({"scopes": ["A", "B", "C", "D"], "acts": 0, "acts_limit": 99,
+        json.dump({"scopes": ["A", "B", "C", "D",
+                              "A级 只读感知", "B级 点击滚动", "C级 打字快捷键", "D级 拖拽"],
+                   "acts": 0, "acts_limit": 99,
                    "expires_at": time.time() + 3600}, f, ensure_ascii=False)
     SB["dir"] = tmp
     return auth
@@ -3795,6 +3800,7 @@ TITLE = "W1判据靶窗|" + (sys.argv[2] if len(sys.argv) > 2 else "")
 BTN = (24, 44, 200, 110)         # 按钮区（客户区坐标）
 EDIT = (20, 130, 380, 165)       # 编辑区（客户区坐标）
 hEdit = 0                        # 编辑区句柄（wndproc 的 WM_ACTIVATE 要用）
+hCount = 0                       # 可见计数（点一下改一次文字，供像素判据看到变化）
 
 
 def wndproc(h, msg, w, l):
@@ -3815,6 +3821,10 @@ def wndproc(h, msg, w, l):
                 n = 0
             with open(STATE, "w") as f:
                 f.write(str(n + 1))
+            try:                  # ★ 可见变化：像素判据才看得到「点中了」
+                win32gui.SetWindowText(hCount, "clicks: %d" % (n + 1))
+            except Exception:
+                pass
         return 0
     if msg == win32con.WM_ACTIVATE and w:
         win32gui.SetFocus(hEdit)      # 前台激活时把焦点交给编辑区
@@ -3822,7 +3832,7 @@ def wndproc(h, msg, w, l):
 
 
 def main():
-    global hEdit
+    global hEdit, hCount
     wc = win32gui.WNDCLASS()
     wc.lpfnWndProc = wndproc
     wc.lpszClassName = CLS
@@ -3831,6 +3841,9 @@ def main():
     h = win32gui.CreateWindow(wc.lpszClassName, TITLE,
                               win32con.WS_OVERLAPPEDWINDOW, 0, 0, 450, 255,
                               0, 0, wc.hInstance, None)
+    hCount = win32gui.CreateWindow("Static", "clicks: 0",
+                                   win32con.WS_CHILD | win32con.WS_VISIBLE,
+                                   24, 8, 200, 28, h, 0, wc.hInstance, None)
     e = win32gui.CreateWindow("Edit", "",
                               win32con.WS_CHILD | win32con.WS_VISIBLE
                               | win32con.WS_BORDER | win32con.ES_AUTOHSCROLL,
@@ -3883,6 +3896,10 @@ def _w1_legacy_sandbox(core, reds=None):
             json.dump({"scopes": ["A级 只读感知", "B级 点击滚动", "C级 打字快捷键", "D级 拖拽"],
                        "acts": 0, "acts_limit": 99,
                        "expires_at": time.time() + 3600}, f, ensure_ascii=False)
+        # ★ 2026-11-15：老线 act.py 的 AGENTCTL_AUTHDIR 由 core._legacy_env()
+        #   指向 gate.PASSFILE 所在目录（sandbox 的 _auth），所以真正生效的是
+        #   sandbox() 里那张「短名 + 全名」双档位通行证；这里保留副本自己的
+        #   _auth，供不经 core._legacy_env 的直跑路径使用。
     # 副本一致性：真源与沙箱副本必须逐字节相同，否则本组判的就不是真源
     for nm in ("act.py", "gate.py"):
         a = os.path.join(src_dir, nm)
@@ -3913,10 +3930,10 @@ def _w1_spy_legacy(core):
     calls = []
     real = core.__dict__.get("_legacy")
 
-    def spy(name, args, timeout=60):
+    def spy(name, args, timeout=60, extra_env=None):
         if name == "act.py":
             calls.append(list(args))
-        return real(name, args, timeout)
+        return real(name, args, timeout, extra_env=extra_env)
 
     core._legacy = spy
     return calls, real
@@ -4448,7 +4465,7 @@ def check_neural_p0(core, fx):
     spawns = []
     box = {"hit": None, "diff": None, "snap": None}
 
-    def 假legacy(name, argv, timeout=60):
+    def 假legacy(name, argv, timeout=60, extra_env=None):
         spawns.append((name, list(argv)))
         return 0, "假 act.py：动作发出去了", ""
 

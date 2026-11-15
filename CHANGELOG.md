@@ -29,9 +29,32 @@
 - README 第一屏改为“30 秒看懂 + 30 秒试一下”，完整英文入口与 demo 脚本见
   `docs/readme-first-screen-draft-20261108.md`。
 - 新增 50 任务 Windows benchmark 规格：`docs/benchmark-50-20261108.md`。
+- 2026-11-08 已用修复后的源码重建冻结版 `AgentCtl.exe`（PyInstaller onedir；
+  exe 33.7 MB / 安装目录约 237 MB），本机 `AgentCtl-fixed` 已替换并通过
+  CLI / HTTP / MCP / legacy 三态 + 冻结自检。构建配置排除
+  `torch / transformers / pytest` 等非控制链路依赖；当前记忆库为
+  `hash-ngram-zh-v1`，不依赖 BGE。构建、完整性标签坑与回滚步骤见
+  `docs/rebuild-agentctl-20261108.md`。
 
 ### Fixed
 
+- 修复 `ctl_keys` 契约缺字段：`t_keys` 现在回 `{vk, 键名, 解析, ctrl, 次数}`（原来只有 raw），
+  单字符数字 `9` 可被证明走的是键名而不是 Tab。回归：`_语义屏判据.py` (11) 绿。
+- 判据沙箱适配：`_语义屏判据.py` 的通行证同时写短名/全名档位、假 legacy 接 `extra_env`、
+  靶窗点击后重绘 `clicks` 计数；全量判据 GREEN（退出码 0）。
+- 修复边框孤儿：`_ensure_border()` 不再裸 `Popen`，改走
+  `ctrl_border.start_follow()`（父 pid + 创建时间认亲 + KILL_ON_JOB_CLOSE）；
+  冻结态明确跳过，不假起。回归：`tests/test_border_spawn.py`。
+- 修复 `_screen_forget(0)` 崩溃：`LockedDict` 缺少 `clear()`，整表失效路径抛
+  `AttributeError`。补 `clear()` 与 `tests/test_sync.py` 回归。
+- 更新 `tests/_语义屏判据.py` 的假 `legacy` 签名，接受 `_act` 新传入的 `extra_env`。
+- 修复 retina daemon 未启动即处理帧时的崩溃：`RetinaDaemon.__init__` 现在初始化
+  `_session = {}`，`process_frame` / `_session_state` 不再抛
+  `AttributeError: 'RetinaDaemon' object has no attribute '_session'`。
+  回归：`tests/test_retina.py` 7 项由红转绿（`pytest tests` 41 passed）。
+- 修正 `ctl_screen` 契约与注释的通道口径：R1(CDP+DOM)、R3(OCR) 均已接线，
+  不再写“只判定不接线”；`offset-suspect` 页面先落 R3(OCR)，OCR 也不成立才落 VLM；
+  OCR 明确标为像素通道，不再并入“结构化通道”。
 - 修复冻结版独立验证假阴性：`_cl_run` 在 `sys.frozen` 下改用
   `AgentCtl.exe legacy <script>`，不再把 `-X utf8` 传给 exe。旧实现会让
   `verify_expect` 动作已经 `met`、独立验证却返回 `unknown`（rc=4 + 旧 notices）。
