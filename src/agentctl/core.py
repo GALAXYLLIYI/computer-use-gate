@@ -6718,7 +6718,11 @@ def _screen_ready(nodes, stats, *, elapsed_ms, prev_nodes=0, is_web=False) -> tu
     ★ 三条依据（写死、可调；任一命中即判未热）：
       ① 节点数明显少于**上一次同窗口扫描**（< 60%）—— 树被抽走了（懒启动的典型形状）；
       ② 可交互节点数 == 0 而窗口客户区非零 —— 一屏连个能点的都没有，多半只拿到外壳；
-      ③ 采集耗时很短却节点极少（外壳特征）—— 冷启动时树还没长出来，走一趟当然快。
+      ③ **网页类专属**：采集耗时很短却节点极少（外壳特征）—— 冷启动时树还没长出来，
+          走一趟当然快。★ 2026-11-16 修复（§4.5.3）：这条原来不问窗口类别，
+          小原生窗（520×430 自绘窗，10~14 节点、33~50ms 采集 —— 那本来就是它的完整树）
+          被误判成「外壳特征」，白吃 2 次暖机重试（+800ms）+ 一条假「可能未热」。
+          ③ 现在只对 is_web=True 生效；原生窗口靠 ①② 兜底。
       ③b **网页类专属**：可报对象数 < SCREEN_WEB_READY_MIN_OBJS ⇒ 未热，**不看耗时**
           （真页冷扫是 60 节点/372ms，旧的「过快+极少」永远撞不上；见 3276 附近出处注释）。
     ★ 全部三条都只在「客户区非零」时才有意义：零尺寸窗口的 0 节点不是「未热」。
@@ -6748,7 +6752,10 @@ def _screen_ready(nodes, stats, *, elapsed_ms, prev_nodes=0, is_web=False) -> tu
                         % (n, int(prev_nodes), int(SCREEN_READY_SHRINK_RATIO * 100)))
         if n_int == 0:
             why.append("可交互节点 0 个，而客户区非零（%d×%d）—— 多半只拿到外壳" % (w, h))
-        if float(elapsed_ms) < SCREEN_WARM_FAST_MS and n <= SCREEN_SHELL_MAX_NODES:
+        # ★ ③ 网页类专属（2026-11-16 §4.5.3 修复）：小原生窗 10~14 个节点就是完整树，
+        #   快采集对它是正常形状，不是「外壳特征」—— 别拿 Chromium 的毛病吓原生窗。
+        if (is_web and float(elapsed_ms) < SCREEN_WARM_FAST_MS
+                and n <= SCREEN_SHELL_MAX_NODES):
             why.append("采集只用了 %.0fms 却只有 %d 个节点（外壳特征）" % (elapsed_ms, n))
         if is_web and n_obj < SCREEN_WEB_READY_MIN_OBJS:
             why.append("网页类窗口只有 %d 个可报对象（< %d）—— Chromium 无障碍树多半还没长全"
@@ -7112,7 +7119,7 @@ def _screen_build(hwnd: int, args: dict, state=None) -> dict:
                      "首扫强制探测": min_probes >= 2,
                      "重试上限": SCREEN_WARMUP_MAX_RETRY, "间隔毫秒": SCREEN_WARMUP_GAP_MS,
                      "判定": ready_why or ["节点数、可交互数、采集耗时三项都正常"],
-                     "口径": "依据① 节点数<上次60% / ②可交互=0而客户区非零 / ③采集过快而节点极少；"
+                     "口径": "依据① 节点数<上次60% / ②可交互=0而客户区非零 / ③网页类：采集过快而节点极少；"
                            "任一命中即判未热。screen_ready=false ⇒ **证据不足**，不是"
                            "「没有」—— 别据此断定页面上没有那个东西。"},
         "window": {"hwnd": win.get("hwnd"), "title": win.get("title"),
@@ -7367,14 +7374,19 @@ def t_screen(args: dict) -> dict:
         #   只在 blind_spots 里点名，并给一条可执行的下一步。
         if isinstance(res, dict) and res.get("screen_ready") is False:
             ev = res.get("ready_证据") or {}
+            # ★ 2026-11-16 §4.5.3：暖机这层是为 Chromium 的懒启用树造的 ——
+            #   原生窗口未热时别拿「Chromium 怎么怎样」当解释（那不是这扇窗的病因）。
+            _未热原因 = ("Chromium 的无障碍树是懒启用的，首扫常只拿到外壳"
+                       if str(ev.get("窗口类别") or "") == "网页类"
+                       else "这扇窗的树可能还没长全（依据见 ready_证据.判定）")
             r["blind_spots"] = list(r.get("blind_spots") or []) + [
                 "本屏可能未热（%s）—— **证据不足，不等于「页面上没有它」**："
-                "本屏扫到 %s 个节点，重试 %s 次仍未见完整树。Chromium 的无障碍树是懒启用的，"
-                "首扫常只拿到外壳。下一步：稍候 1~3 秒再调一次 ctl_screen（别改声明串），"
+                "本屏扫到 %s 个节点，重试 %s 次仍未见完整树。%s。"
+                "下一步：稍候 1~3 秒再调一次 ctl_screen（别改声明串），"
                 "或改用 ctl_shot/ctl_find 交叉确认；**在这一屏上没看到某个东西，"
                 "不要当成页面上没有**。"
                 % ("；".join(ev.get("判定") or []) or "依据不足",
-                   ev.get("节点数"), ev.get("重试"))]
+                   ev.get("节点数"), ev.get("重试"), _未热原因)]
         # ★ 窗G1：网页类窗口但 **CDP 没接上** ⇒ R1 不成立，同样**只进 blind_spots、不动信封**
         #   （和 F2 的「未热≠拒绝」同一条纪律：通道不可用是**证据不足**，不是「没有」）。
         if isinstance(res, dict):

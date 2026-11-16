@@ -333,6 +333,8 @@ class Fixture(object):
         self._cold_until = 0.0
         # ★ 窗F2b：半热窗口期（0 = 不半热）—— 见 start_half_cold/half_root。
         self._half_until = 0.0
+        # ★ §4.5.3：小原生窗窗口期（0 = 不小）—— 见 start_small/small_root。
+        self._small_until = 0.0
         # ★ 窗G3：假点击器按什么脚本改这棵树 ——
         #   none=不动 / advance=计时器与状态行换字（文字变） / insert=插一个按钮（结构变）
         self.g3_click_effect = "none"
@@ -407,6 +409,16 @@ class Fixture(object):
     def is_half_cold(self):
         return bool(getattr(self, "_half_until", 0.0)) and time.time() < self._half_until
 
+    def start_small(self, ms=8000):
+        """接下来 ms 毫秒里 walk 只拿到「**小原生窗**」树（§4.5.3 实测形状，见 small_root）。
+
+        ★ 与冷/半热同一套按时间门控的口径（同上，别按趟数计数）。
+        """
+        self._small_until = time.time() + (float(ms) / 1000.0)
+
+    def is_small(self):
+        return bool(getattr(self, "_small_until", 0.0)) and time.time() < self._small_until
+
     def half_root(self):
         """真页冷扫形状：**约 60 个原始节点，但可报对象只有 18 个**。
 
@@ -436,6 +448,26 @@ class Fixture(object):
         return _Ctrl("PaneControl", [0, 0, 1280, 900], "半热网页根",
                      rid=[799, 1], children=inner)
 
+    def small_root(self):
+        """小原生窗的**完整**树：12 个节点、6 个可交互 —— §4.5.3 实测形状。
+
+        ★ 这不是外壳：520×430 自绘窗本来就这么大，12 个节点就是它的全部。
+          旧判定③「采集过快而节点极少」不问窗口类别，把它误判成外壳 ⇒
+          白吃 2 次暖机（+800ms）+ 一条假「可能未热」；修复后 ③ 只对网页类生效。
+        """
+        rid = [700, 1]
+        inner = []
+        for i in range(6):
+            rid[0] += 1
+            inner.append(_Ctrl("ButtonControl", [20, 30 + 60 * i, 200, 80 + 60 * i],
+                               "小窗按钮%d" % (i + 1), rid=list(rid)))
+        for i in range(5):
+            rid[0] += 1
+            inner.append(_Ctrl("TextControl", [220, 30 + 60 * i, 500, 80 + 60 * i],
+                               "小窗说明%d" % (i + 1), rid=list(rid)))
+        return _Ctrl("PaneControl", [0, 0, 520, 430], "小原生窗根",
+                     rid=[699, 1], children=inner)
+
     def root(self):
         # ★ 窗F2：冷窗口期只给外壳（walk() 仍是现役真代码，换的只是 _lib 这个 I/O 边界）。
         if self.is_cold():
@@ -443,6 +475,9 @@ class Fixture(object):
         # ★ 窗F2b：半热窗口期只给「半热」树（真页冷扫的形状）。
         if self.is_half_cold():
             return self.half_root()
+        # ★ §4.5.3：小原生窗窗口期只给「小」树（完整树，不是外壳）。
+        if self.is_small():
+            return self.small_root()
         inner = []
         rid = [100, 1]
         # (1) query 命中的**大**文本（面积占客户区 88%）：打分 0.638，压过小按钮的 0.601
@@ -3609,6 +3644,35 @@ def check_screen_ready(core, fx):
          "warmup=false 时网页类首扫仍应**如实**判未热，实得 %r" % sc9.get("screen_ready"), reds)
     need("未热" in 盲点(r9),
          "warmup=false + 网页未热 ⇒ blind_spots 仍要点名：%s" % 盲点(r9)[:160], reds)
+
+    # ── ⑩ ★ §4.5.3（2026-11-16）：小原生窗快采集 ⇒ ready=true，**不许**吃暖机
+    #   旧判定③「采集过快而节点极少」不问窗口类别，把 12 节点的完整小树误判成外壳：
+    #   白吃 2 次重试（+800ms）+ 一条假「可能未热」blind_spot。修复后 ③ 只对网页类生效。
+    fx._half_until = 0.0
+    fx._cold_until = 0.0
+    fx.cls = "TkTopLevel"
+    core._screen_forget(0)
+    fx.start_small(8000)
+    t10 = time.time()
+    r10, sc10 = call(core, top=500)
+    dt10 = (time.time() - t10) * 1000.0
+    e10 = 证据(sc10)
+    ev["⑩小原生窗快采集"] = {"screen_ready": sc10.get("screen_ready"), "重试": e10.get("重试"),
+                       "等待毫秒": e10.get("等待毫秒"), "各次节点数": e10.get("各次节点数"),
+                       "节点数": e10.get("节点数"), "判定": e10.get("判定"),
+                       "窗口类别": e10.get("窗口类别"), "耗时毫秒": int(dt10)}
+    need(sc10.get("screen_ready") is True,
+         "小原生窗（12 节点、6 可交互、快采集）被误判未热：判定=%r —— "
+         "§4.5.3：对这种窗 12 个节点就是完整树，别拿 Chromium 的毛病吓原生窗"
+         % (e10.get("判定"),), reds)
+    need(int(e10.get("重试") or 0) == 0 and int(e10.get("等待毫秒") or 0) == 0,
+         "小原生窗还是吃了暖机（重试=%r，等待=%r ms）—— 误判外壳就会白等 2×400ms"
+         % (e10.get("重试"), e10.get("等待毫秒")), reds)
+    need(dt10 < 500, "小原生窗首扫耗时 %d ms —— 误判时的暖机路径远超这个值" % int(dt10), reds)
+    need("未热" not in 盲点(r10),
+         "ready=true 却还挂着「可能未热」blind_spot：%s" % 盲点(r10)[:160], reds)
+    fx._small_until = 0.0
+    core._screen_forget(0)
     fx._half_until = 0.0
     fx.cls = "TkTopLevel"
     core._screen_forget(0)
@@ -4808,6 +4872,7 @@ def main():
               "⑥网页类首扫必探两次（重试≥1，取节点更多那趟）；"
               "⑦首扫两次都冷⇒screen_ready=false（按可报对象数判，不看耗时）；"
               "⑧非网页类首扫不加延迟（重试=0）；⑨warmup=false 不探第二次但就绪仍如实；"
+              "⑩小原生窗快采集⇒ready=true 不吃暖机（§4.5.3：判定③只对网页类生效）；"
               "S8CDP接线：DOM命中⇒R1真且must_vlm=false（R2不成立时单独扛）、"
               "CDP不可达⇒如实false并写进blind_spots（不等于「页面没有」）、"
               "dom段≤60条且逐条带role/name/rect/selector、端口被别人占⇒明确拒绝不抢；"
