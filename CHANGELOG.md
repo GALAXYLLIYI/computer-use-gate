@@ -29,6 +29,17 @@
 - README 第一屏改为“30 秒看懂 + 30 秒试一下”，完整英文入口与 demo 脚本见
   `docs/readme-first-screen-draft-20261108.md`。
 - 新增 50 任务 Windows benchmark 规格：`docs/benchmark-50-20261108.md`。
+- 2026-11-17 用三缺陷修复后的源码重建冻结版（PyInstaller onedir，138s；
+  exe 33,755,689 B / sha16 `3AA54BA7DE514D1F`），staging 四项验收（status /
+  legacy check --help / selftest / `ctl_keys --keys 9 --dry_run` ⇒ `data.键名="9"`）
+  通过后原子换位；旧版备份于 `AgentCtl-fixed.bak-20261117`。实测（CLI 整调用
+  中位，沙箱 authdir，自建 520×430 靶窗）：`ctl_screen --warmup true`
+  **1284.5 → 431.1 ms（-853.4 ms）**、warmup true/false 差 **+843.3 → -2.7 ms**、
+  `screen_ready` false/重试2 → **true/重试0**，树文本 `e0*` 标记出现；其余探针
+  （status 255.0/254.7、ctl_tree 357.9/353.5、ctl_find 361.0/353.1）无回归。
+  ⚠ 脚本坑：`stage_agentctl.ps1` / `swap_agentctl.ps1` 是 UTF-8 **无 BOM** 的
+  .ps1，Windows PowerShell 按 ANSI 解析直接炸（中文串截断引号）—— 换位前
+  给文件补 BOM 即可（stage 那份已坏，改用内联 robocopy 三步等效执行）。
 - 2026-11-08 已用修复后的源码重建冻结版 `AgentCtl.exe`（PyInstaller onedir；
   exe 33.7 MB / 安装目录约 237 MB），本机 `AgentCtl-fixed` 已替换并通过
   CLI / HTTP / MCP / legacy 三态 + 冻结自检。构建配置排除
