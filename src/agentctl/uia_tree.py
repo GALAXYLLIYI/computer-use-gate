@@ -612,12 +612,17 @@ def window_state(handle):
     return out
 
 
-def render(nodes, truncated=False, *, width=64):
+def render(nodes, truncated=False, *, width=64, mark_display=False):
     """紧凑文本树 —— 这是给模型看的默认格式，不是 JSON。
 
     一个节点一行：`e12  Button  提交  [2350,523 144x48]`。
     JSON 版每个节点 9 个字段，787 个节点就是几万 token —— **刷屏等于没信息**。
 
+    ★ mark_display=True（默认轻量树）：eid 印成 `e12*` —— **号是真号、钥匙没给**：
+      轻量模式不采元素明细，这号喂 ctl_click 只会 code=12。星号就是「仅展示」的
+      显式标记，配合 tree() 头部那行「要点它怎么办」（§4.5.2：不许 silently 交出
+      不可动作的 eid）。detail=True 的树不带星号 —— 那些号**真能点**（实测可直喂
+      ctl_click）。
     缩进按**相对深度**算：Chromium 会在最上面套 4~5 层透明壳，
     用绝对深度的话每行前面都是十几个空格，纯占地方。
     """
@@ -626,7 +631,7 @@ def render(nodes, truncated=False, *, width=64):
     for n in nodes:
         r = n["rect"]
         line = "%-5s %-16s %-*s [%5d,%4d %4dx%-4d]" % (
-            n["eid"], n["type"][:16], width,
+            n["eid"] + ("*" if mark_display else ""), n["type"][:16], width,
             (n["name"] or "")[:width], r[0], r[1], r[2] - r[0], r[3] - r[1])
         # ★ S2b：缺省也改成 None —— **缺字段同样是「没验证过」**，不许默认 True。
         #   三态在这里全部呈现：禁用→「(禁用)」，未知→「(启用性未知)」（不得当成启用）。
@@ -696,16 +701,31 @@ def tree(handle, *, max_nodes=DEFAULT_MAX_NODES, max_depth=DEFAULT_MAX_DEPTH,
     ★ F3：include_offscreen 默认 **False**（只回这一屏看得见的）。
       要全量就显式传 True，屏外节点带 in_view=false 一起回 ——
       **屏外节点不是坏节点，别丢，标出来就行。**
+    ★ §4.5.2：默认轻量模式的树文本 eid 印 `eN*`（仅展示、不可动作，头部写明出路）；
+      detail=True 才给**可动作**的 eid（带元素明细，可直喂 ctl_click）。
+      机读口径看返回里的 `eid_可动作`，别解析文本。
     """
     t0 = time.perf_counter()
     st = {}
     nodes, truncated = walk(handle, max_nodes=max_nodes, max_depth=max_depth,
                            roles=roles, detail=detail,
                            include_offscreen=include_offscreen, stats=st, state=state)
-    return {
+    # ★ §4.5.2（2026-11-16）：默认轻量模式的 eid **只展示、不可动作** ——
+    #   文本里印成 `eN*` 并在头部写明出路，**不许 silently 交出点不动的号**
+    #   （拿它喂 ctl_click 只会 code=12，白白浪费一次调用）。
+    #   detail=True 的树不带星号：那些号带元素明细，实测可直喂 ctl_click。
+    _mark = not detail
+    txt = render(nodes, truncated, mark_display=_mark)
+    if _mark and nodes:
+        txt = ("⚠ e* 号**仅展示、不可动作**（默认轻量模式不采元素明细）。要点树里的东西："
+               "① ctl_find --query <字>（默认带明细，最省）；"
+               "② 或本工具带 detail=true 再拉一次（输出大一个量级）。" + chr(10) + txt)
+    out = {
         "句柄": int(handle),
         "节点数": len(nodes),
         "截断": truncated,
+        # ★ §4.5.2：机读口径 —— eid 能不能动作只认这个键，别靠解析树文本。
+        "eid_可动作": bool(detail),
         # ★ F3：滚动真值 + 口径原文 + 丢在哪（视口丢多少、预算丢多少）
         "滚动": st.get("滚动"),
         "视口": st.get("视口"),
@@ -717,6 +737,10 @@ def tree(handle, *, max_nodes=DEFAULT_MAX_NODES, max_depth=DEFAULT_MAX_DEPTH,
         # ★ S2b：同理 —— detail=False 时「节点」是空列表，计数才是默认路径下的可机读余痕。
         "启用性未知": sum(1 for n in nodes if n.get("enabled") is None),
         "耗时_ms": int((time.perf_counter() - t0) * 1000),
-        "树": render(nodes, truncated),
+        "树": txt,
         "节点": nodes if detail else [],
     }
+    if not detail:
+        out["eid_下一步"] = ("轻量树的 e* 仅展示：动作走 ctl_find --query <字>，"
+                           "或 ctl_tree --detail true 后再 ctl_click")
+    return out

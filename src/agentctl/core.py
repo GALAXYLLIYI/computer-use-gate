@@ -1838,8 +1838,12 @@ def t_tree(args: dict) -> dict:
 
     ★ 返回**紧凑文本树**，不是 JSON 字典 —— 每节点 9 个字段 × 787 个节点
       就是几万 token，刷屏等于没信息。
-    ★ 每个可操作元素带 eid（e0、e1...），下一步用 ctl_click 的 eid 直接点，
-      不用自己算坐标 —— 坐标算错就是点错按钮。
+    ★ eid 口径（§4.5.2 修复，2026-11-16）：**默认轻量模式**的树文本 eid 印成 `eN*`
+      —— **仅展示、不可动作**（没采元素明细，拿去 ctl_click 只会 code=12）；
+      头部写明出路，返回里带机读键 `eid_可动作=false` + `eid_下一步`。
+      要**能点**的 eid：① `ctl_find --query <字>`（默认带明细，最省）；
+      ② 或本工具带 detail=true 再拉一次（树文本 eid 不带 *，实测可直喂 ctl_click；
+      代价：小窗 +5ms/3KB，大窗 +280ms 且节点数组几十 KB —— 大窗请用 ctl_screen/ctl_find）。
     """
     r = _uia_gate(args, "ctl_tree", lambda h, st=None: uia_tree.tree(
         h,

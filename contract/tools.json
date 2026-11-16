@@ -345,7 +345,7 @@
     {
       "name": "ctl_tree",
       "title": "元素树（不截图）",
-      "description": "★ **不截图的识别通道**：读 Windows 的 UI Automation（UIA）无障碍树（读屏软件用的就是它）⇒ 控件天生带名字/类型/矩形/可用状态，认题/认选项/认按钮**不靠像素、不 OCR、不编码 PNG**。★ **优先用 ctl_find**，别默认拉全树（复杂页面拉全树就是刷屏）。★ 每个可操作元素带 eid（e0、e1…），下一步用 ctl_click 的 eid 点它，**不用自己算坐标**（算错就是点错按钮）。★ 边界：UIA 看不见 Canvas 自绘/游戏画面/PDF 内嵌/没开无障碍的 Electron；**拿不到元素树 ≠ 界面上没有它** ⇒ 退回 ctl_shot。★ 只读属性，不 Invoke、不点击。",
+      "description": "★ **不截图的识别通道**：读 Windows 的 UI Automation（UIA）无障碍树（读屏软件用的就是它）⇒ 控件天生带名字/类型/矩形/可用状态，认题/认选项/认按钮**不靠像素、不 OCR、不编码 PNG**。★ **优先用 ctl_find**，别默认拉全树（复杂页面拉全树就是刷屏）。★ eid 口径（§4.5.2）：**默认轻量模式**的树文本 eid 印 `eN*` —— **仅展示、不可动作**（没采明细，拿去 ctl_click 只会 code=12）；返回带机读键 eid_可动作=false + eid_下一步。要**能点**的 eid：① ctl_find --query（默认带明细，最省）；② 或本工具带 detail=true（树文本 eid 不带 *，可直喂 ctl_click；代价：小窗 +5ms/3KB，大窗 +280ms 且节点数组几十 KB）。★ 边界：UIA 看不见 Canvas 自绘/游戏画面/PDF 内嵌/没开无障碍的 Electron；**拿不到元素树 ≠ 界面上没有它** ⇒ 退回 ctl_shot。★ 只读属性，不 Invoke、不点击。",
       "annotations": {
         "readOnlyHint": true,
         "destructiveHint": false,

@@ -109,6 +109,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -3023,6 +3024,59 @@ def check_action_side(core, fx):
     need("ctl_find" in w6 and "detail" in w6,
          "文案没给可执行出路（要能看出「改用 ctl_find」或「带 detail」）：%s" % w6[:200], reds)
 
+    # ── ⑥b ★ §4.5.2（2026-11-16）：轻量树**不许 silently 交出不可动作的 eid** ——
+    #   树文本 eid 印成 `eN*`、头部写明出路、返回带机读键 eid_可动作=false。
+    #   （⑥ 只验了「点了会被拒且拒得明白」；⑥b 验的是**事前就把话说清** ——
+    #     agent 不该点了才知道点不动。）
+    res6t = (r6t.get("data") or {}).get("结果") or {}
+    txt6t = str(res6t.get("树") or "")
+    # eid token 全量提取（\be\d+\*?），按「整 token 是否带星」分类 ——
+    # ⚠ 别用「e\d+(?!\*)」这种排除式：e10* 会被回溯匹配出假裸号 e1（实测 42 个）。
+    _toks = [m.group(0) for m in re.finditer(r"\be\d+\*?", txt6t)]
+    _bare = [x for x in _toks if not x.endswith("*")]
+    ev["⑥b轻量树标记"] = {"eid_可动作": res6t.get("eid_可动作"),
+                       "eid_下一步在": bool(res6t.get("eid_下一步")),
+                       "头部点名": ("仅展示" in txt6t),
+                       "eid_token数": len(_toks),
+                       "星号标记数": sum(1 for x in _toks if x.endswith("*")),
+                       "裸号数": len(_bare), "裸号样例": _bare[:5]}
+    need(res6t.get("eid_可动作") is False,
+         "轻量树的 eid_可动作 没如实给 false（%r）—— 机读口径失守" % res6t.get("eid_可动作"), reds)
+    need(bool(res6t.get("eid_下一步")),
+         "轻量树没给 eid_下一步（agent 要靠它知道下一步走哪条路）", reds)
+    need("仅展示" in txt6t,
+         "轻量树文本头部没写「仅展示」（§4.5.2：不许 silently 交出不可动作的 eid）", reds)
+    need(len(_toks) > 0 and len(_bare) == 0,
+         "轻量树文本还有没带 * 的裸 eid（%d 个：%s）—— 标记口径不彻底"
+         % (len(_bare), _bare[:8]), reds)
+
+    # ── ⑥c ★ §4.5.2 对照组：detail=true 的树 eid **真可动作**（实测能直喂 ctl_click），
+    #   且树文本不带 *、不带「仅展示」头部、eid_可动作=true。
+    r6d = core.dispatch("ctl_tree", {"hwnd": FAKE_HWND, "detail": True}, actor="判据G3b")
+    res6d = (r6d.get("data") or {}).get("结果") or {}
+    nodes6d = res6d.get("节点") or []
+    txt6d = str(res6d.get("树") or "")
+    btn6d = next((n for n in nodes6d if str(n.get("type") or "") == "ButtonControl"
+                  and str(n.get("name") or "").startswith("选项格")), None) or (nodes6d or [{}])[0]
+    tok6d = (r6d.get("data") or {}).get("capture_id")
+    n6d = len(点过)
+    r6dc = core.dispatch("ctl_click", {"hwnd": FAKE_HWND, "eid": btn6d.get("eid"),
+                                   "from_capture": tok6d, "actor": "判据G3b"}, actor="判据G3b")
+    ev["⑥cdetail树可动作"] = {"eid_可动作": res6d.get("eid_可动作"),
+                          "头部没了": ("仅展示" not in txt6d),
+                          "星号残留": len(re.findall(r"\be\d+\*", txt6d)),
+                          "点它": {"ok": r6dc.get("ok"), "code": r6dc.get("code"),
+                                   "点了": len(点过) - n6d,
+                                   "warning": (r6dc.get("warning") or "")[:160]}}
+    need(res6d.get("eid_可动作") is True,
+         "detail 树的 eid_可动作 没给 true（%r）—— 「--detail 后能点」这条路就断了"
+         % res6d.get("eid_可动作"), reds)
+    need("仅展示" not in txt6d and len(re.findall(r"\be\d+\*", txt6d)) == 0,
+         "detail 树不该有「仅展示」头部或星号（那是轻量树专属标记）", reds)
+    need(r6dc.get("ok") is True and (len(点过) - n6d) == 1,
+         "detail 树的 eid 喂 ctl_click 没真点成（ok=%r code=%r 点了 %d 次）"
+         % (r6dc.get("ok"), r6dc.get("code"), len(点过) - n6d), reds)
+
     # ── ⑦ 老路回归（不许被这次改动带坏）：ctl_find 的 eid 直点。
     r7f = core.dispatch("ctl_find", {"hwnd": FAKE_HWND, "query": "选项格02"},
                      actor="判据G3b")
@@ -4879,7 +4933,9 @@ def main():
               "S10动作侧：ctl_screen 的 eid 能直接喂 ctl_click 且身份复核通过、"
               "expect_uid 对得上才点、对不上拒且一个像素没点、"
               "点完 after.uid_state 归因正确（文字变 TEXT_CHANGED、结构变 STALE）、"
-              "滚出视口的对象仍可点（复核取超集）；"
+              "滚出视口的对象仍可点（复核取超集）、"
+              "⑥b 轻量树 eid 印 eN* 仅展示（机读 eid_可动作=false+eid_下一步，§4.5.2）、"
+              "⑥c detail 树 eid 无星号且能直喂 ctl_click；"
               "S12P0神经层：目标窗被盖住⇒发送之前就拒且回执点名遮挡者（act.py 零 spawn）、"
               "变化全在判定区外⇒changed_outside_target（不报成功）、观测失败⇒unknown（≠no_effect）、"
               "窗口移动⇒gen 递增且带旧 gen 的动作/查询 code=12、expect_region 落在别人窗里⇒前置拒；"
