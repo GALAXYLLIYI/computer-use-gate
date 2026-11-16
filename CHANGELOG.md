@@ -38,6 +38,30 @@
 
 ### Fixed
 
+- 修复 `screen_ready` 对小原生窗误判（2026-11-16 §4.5.3）：`_screen_ready()` 判定③
+  「采集过快而节点极少」原先不问窗口类别，把 520×430 小原生窗（13 节点完整树、
+  33~50ms 采集）误判成「外壳特征」⇒ 白吃 2 次暖机重试（+800ms）+ 一条假
+  「本屏可能未热」。现在 ③ 只对 `is_web=True` 生效；原生窗口靠 ①（<上次 60%）
+  ②（可交互=0）兜底。实测（bench_target.py 靶窗）：`warmup=True` 首扫 908.6ms →
+  251ms（与 `warmup=False` 差 3ms，剩余是首次 UIA COM 初始化）。回归：
+  `tests/test_screen_ready.py`（4 条，含 ①②兜底不许失守）+ 判据 S7 新增⑩。
+  （`c8f925c`）
+- 修复 `ctl_focus` 用像素 diff 判成功（2026-11-16 §4.5.1，P0 误报）：聚焦不改变
+  目标窗自身内容，窗口确实被置前却回 `code=8`「画面逐像素没变」。现在成功判据
+  改成**前台归属**（`GetForegroundWindow()==hwnd`，core 复核）：置前成功 ⇒
+  `ok=true/code=0`，像素 diff 降级进 `data.focus_证据`（非致命）；act 报送达但
+  复核不在前台（前台锁/被抢）⇒ `code=5` 不假绿；问不出归属 ⇒ fail-closed；
+  `verify_expect` 闭环没过 ⇒ 保持失败（闭环优先）。`_act` 通用画面判词一字未动。
+  契约同步（过时「已知缺陷」注记换成新判据口径）。回归：
+  `tests/test_focus_verdict.py`（6 条）+ 判据 (11) 组绿 + 端到端两场景
+  （已在前台再 focus / 最小化调回前台）PASS。（`1185a00`）
+- 修复 `ctl_tree` 默认 silently 交出不可动作的 eid（2026-11-16 §4.5.2）：默认轻量
+  模式树文本印 `e0…eN`，拿去 `ctl_click` 必吃 `code=12`。实测取舍：A（默认
+  `detail=true`）输出 ≈300B/节点（787 节点 ≈200KB+，违背紧凑树初衷）⇒ 选 B：
+  轻量树文本 eid 印 `eN*`（仅展示）+ 头部写明两条出路 + 机读键
+  `eid_可动作=false`/`eid_下一步`；`detail=true` 的树 eid 无星号、实测可直喂
+  `ctl_click`。契约与 `t_tree` docstring 的过时承诺同步改。回归：判据 S10 新增
+  ⑥b/⑥c（星号 52/52、裸号 0；detail 树直点真成）。（`1dfe92e`）
 - 修复 `ctl_keys` 契约缺字段：`t_keys` 现在回 `{vk, 键名, 解析, ctrl, 次数}`（原来只有 raw），
   单字符数字 `9` 可被证明走的是键名而不是 Tab。回归：`_语义屏判据.py` (11) 绿。
 - 修复 `ctl_keys` 失败信封 `data=null` 时崩成内部错误（code=15）：冻结版实测
