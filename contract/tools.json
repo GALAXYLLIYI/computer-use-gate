@@ -182,7 +182,7 @@
     {
       "name": "ctl_focus",
       "title": "切前台",
-      "description": "把窗口切到前台（必要时从最小化恢复）。**点击/打字的前置条件**，属动作 → B 级。⚠️ 已知缺陷：底层 act.py 的 do_focus 判成功只看 foreground、不验 IsIconic ⇒ **最小化的窗口也可能报成功** —— 务必用返回的 foreground 与后续截图**双重核验**。",
+      "description": "把窗口切到前台（必要时从最小化恢复）。**点击/打字的前置条件**，属动作 → B 级。★ 成功判据是**前台归属**（GetForegroundWindow==hwnd，core 复核）：ok=true ⇒ data.foreground=true；像素 diff 只作证据（data.focus_证据 / data.after.diff），不参与成败（§4.5.1 —— 聚焦不改目标窗内容，画面没变是正常形状）。真没置前 ⇒ code=5。",
       "annotations": {
         "readOnlyHint": false,
         "destructiveHint": false,

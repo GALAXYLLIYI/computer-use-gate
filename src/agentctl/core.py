@@ -5789,14 +5789,52 @@ def t_focus(args: dict) -> dict:
     ★ 2026-10-02 补：做验收时发现服务里**没有这个工具**，而"窗口被最小化"正是
       最常见的真实起点（`ctl_shot` 会明确拒绝最小化窗口）。缺了它，agent 连
       "把用户说的那个窗口调出来"都做不到 —— 这是能力缺口，不是锦上添花。
+    ★ 2026-11-16 §4.5.1（P0 误报修复）：成功判据改成**前台归属**
+      （GetForegroundWindow()==hwnd，即 _is_foreground），不再看像素 diff ——
+      聚焦不改变目标窗自身内容，「画面没变」是正常形状不是失败（实测：窗口确实被置前，
+      却回 code=8「画面逐像素没变」）。收口只在**本函数**：
+      · 置前成功 ⇒ ok=true/code=0，像素 diff 降级进 data.focus_证据（非致命）；
+      · act 报成功但复核没到前台（前台锁/被抢走）⇒ code=5，**不许假绿**；
+      · act 自己报的失败（rc=5 等）原样保留，只补 foreground 证据；
+      · 闭环判词（verify_expect）没过 ⇒ 保持失败 —— 闭环优先于本判据。
+      ⚠ _act 的通用画面判词一个字没动，其他动作仍走「画面说了算」。
     """
     hwnd = int(args.get("hwnd") or 0)
     argv = ["focus", "--hwnd", str(hwnd)]
     if args.get("dry_run"):
         argv += ["--dry-run"]
     r = _act("focus", args, argv, scope="B")
+    if args.get("dry_run"):
+        # 演练不真的置前，前台归属没有意义 —— 按演练的旧口径原样返回。
+        return r
+    # ★ 前台归属是 focus 的唯一成功判据（§4.5.1）。_is_foreground 三态：
+    #   True=已在前台 / False=不在 / None=问不出来（fail-closed，不算成功）。
+    fg = _is_foreground(hwnd)
+    d = r.get("data") or {}
+    r["data"] = {**d, "foreground": (fg is True)}
+    # 闭环判词（verify_expect）没过 ⇒ 保持失败，别拿前台归属把它翻成绿（T17：闭环优先）。
+    _closed_loop_failed = (r.get("verdict") is not None
+                           and r.get("verdict") != "satisfied")
+    if fg is True and not _closed_loop_failed:
+        if not r.get("ok") or r.get("code") not in (0, None):
+            # _act 的画面判词判了「没变/没测出来」—— 对 focus 是误报，降级成证据
+            r["ok"] = True
+            r["code"] = 0
+            r["warning"] = ""
+        r["data"]["focus_证据"] = {
+            "画面diff_changed": ((d.get("after") or {}).get("diff") or {}).get("changed"),
+            "act_rc": d.get("rc"),
+            "说明": "focus 不改目标窗内容：成功判据是前台归属（GetForegroundWindow==hwnd），"
+                    "画面 diff 仅作证据、不参与成败（§4.5.1）",
+        }
+        return r
     if r.get("ok"):
-        r["data"] = {**(r.get("data") or {}), "foreground": _is_foreground(hwnd)}
+        # act 说输入送到了，但此刻不在前台（前台锁/被别的窗抢走）⇒ **不许假绿**。
+        # 像素 diff 照旧留在 data.after.diff（证据），码落 5（与 act.py 置前失败同语义）。
+        return env(code=gate.CODE_UNSTABLE, data=r["data"],
+                   warning="★ 置前**没有生效**：此刻 GetForegroundWindow() != hwnd"
+                           "（前台锁/被其他窗抢走是常见原因）。本次**不报成功**。"
+                           "下一步：ctl_windows 看目标窗状态（可能最小化/被遮挡），稍候重试。")
     return r
 
 
