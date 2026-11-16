@@ -40,6 +40,9 @@
 
 - 修复 `ctl_keys` 契约缺字段：`t_keys` 现在回 `{vk, 键名, 解析, ctrl, 次数}`（原来只有 raw），
   单字符数字 `9` 可被证明走的是键名而不是 Tab。回归：`_语义屏判据.py` (11) 绿。
+- 修复 `ctl_keys` 失败信封 `data=null` 时崩成内部错误（code=15）：冻结版实测
+  `r.setdefault("data", {})` 会拿到 `None`。改为先 `isinstance` 兜底再补字段。
+  回归：`tests/test_keys_contract.py`（data=None / 正常 dict 两条）。
 - 判据沙箱适配：`_语义屏判据.py` 的通行证同时写短名/全名档位、假 legacy 接 `extra_env`、
   靶窗点击后重绘 `clicks` 计数；全量判据 GREEN（退出码 0）。
 - 修复边框孤儿：`_ensure_border()` 不再裸 `Popen`，改走

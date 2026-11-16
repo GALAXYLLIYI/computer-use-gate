@@ -5060,7 +5060,13 @@ def t_keys(args: dict) -> dict:
     # ★ 2026-11-15：契约 returns 承诺 {vk, 键名, 解析, ctrl, 次数, raw}；
     #   原来只透传了 raw，调用方/判据只能看到空字段。这里补齐，且成功/失败都带 ——
     #   让调用方能分辨「发的是键名 9」还是「数值 0x09（Tab）」。
-    _d = r.setdefault("data", {})
+    #   ⚠ 失败信封的 data 可能是 **null**（2026-11-15 冻结版实测：ctl_keys 早期失败
+    #   返回 code=15 时 data=None）⇒ 不能直接 setdefault，否则 'NoneType' has no
+    #   attribute 'setdefault'，把一次正常的拒绝变成内部错误。
+    _d = r.get("data")
+    if not isinstance(_d, dict):
+        _d = {}
+        r["data"] = _d
     _d.setdefault("vk", _spec)
     _d.setdefault("键名", _kname or "")
     _d.setdefault("解析", why or "")
