@@ -1331,7 +1331,12 @@
             ]
           },
           "url_contains": {
-            "type": "string"
+            "type": "string",
+            "description": "按 URL/标题关键字挑标签页。goto 里映射 --url2（cmd_goto 只认 url2），其余命令映射 --url。"
+          },
+          "target": {
+            "type": "string",
+            "description": "★ goto/open 的目标 URL（2026-11-17 补：此前没有出口，goto 必报 location.href=''）。goto → --target；open → 位置参数（在本浏览器新开标签）。"
           },
           "selector": {
             "type": "string"

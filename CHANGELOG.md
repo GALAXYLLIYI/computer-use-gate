@@ -49,6 +49,14 @@
 
 ### Fixed
 
+- 修复 `ctl_browser` goto/open 目标 URL 没有出口（2026-11-17 夜跑实测）：契约没有
+  URL 参数、`t_browser` 的 argv 也拼不出去 ⇒ `cdp.py cmd_goto` 拿 `a.target=None`，
+  `location.href=''` 直接 SyntaxError（rc=1 掉进「未知返回码」），当晚只能用
+  eval JS 导航绕过。补 `target` 参数：goto → `--target`；open → 位置参数（紧跟
+  动作名）；goto 的 `url_contains` 改映射 `--url2`（cmd_goto 只认 url2 挑标签页，
+  旧映射 `--url` 传了没人读）。回归：`tests/test_browser_goto.py`（5 条，argv 捕获
+  口径）；真机 E2E：open 新标签 → pages 确认 → goto 导航 example.com → pages
+  确认，四步全过；语义屏判据全量 exit 0（契约加字段不回归）。
 - 修复 `screen_ready` 对小原生窗误判（2026-11-16 §4.5.3）：`_screen_ready()` 判定③
   「采集过快而节点极少」原先不问窗口类别，把 520×430 小原生窗（13 节点完整树、
   33~50ms 采集）误判成「外壳特征」⇒ 白吃 2 次暖机重试（+800ms）+ 一条假

@@ -5137,15 +5137,25 @@ def t_browser(args: dict) -> dict:
         return _cdp_close(args)
     action = (args.get("action") or "pages").lower()
     argv = [action]
+    # ★ 2026-11-17（夜跑实测踩到）：goto/open 的目标 URL 此前**没有出口** ——
+    #   契约没这个参数、下面的 argv 也拼不出去 ⇒ cdp.py cmd_goto 拿 a.target=None，
+    #   location.href='' 直接 SyntaxError（当晚只能用 eval JS 导航绕过）。
+    #   补 `target` 参数：goto → --target；open → 位置参数（cmd_open 读 a.target or a.arg，
+    #   且要紧跟动作名，别落到旗标后面与 selector 位次抢座）。
+    if action in ("goto", "open") and args.get("target") is not None:
+        argv += (["--target", str(args["target"])] if action == "goto"
+                 else [str(args["target"])])
     if action in ("text", "html", "find", "eval", "shot", "click", "fill", "goto", "open", "wait"):
-        if args.get("selector"):
+        # open 已用位置参数带 URL 时不再吃 selector 位置（两个位置参数 argparse 必炸）
+        if args.get("selector") and not (action == "open" and args.get("target") is not None):
             argv += [str(args["selector"])]
         elif args.get("js") and action == "eval":
             argv += ["--js", str(args["js"])]
     if action == "eval" and args.get("js") and "--js" not in argv:
         argv += ["--js", str(args["js"])]
     if args.get("url_contains"):
-        argv += ["--url", str(args["url_contains"])]
+        # ★ goto 的标签页关键字走 --url2（cmd_goto 只认 url2）；其余命令照旧 --url
+        argv += ["--url2" if action == "goto" else "--url", str(args["url_contains"])]
     if args.get("value") is not None:
         argv += [str(args["value"])]
     # ★ 窗E2：这里原来**把 port 丢了** —— ctl_browser pages/eval/text... 传了
