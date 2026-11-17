@@ -54,7 +54,23 @@ a = Analysis(
     #   secure_mkdtemp() 会报「No usable temporary directory」，导致 exe 起不来。
     #   AgentCtl 控制链路不使用 matplotlib（见 src/agentctl/_bundled_deps.py），
     #   明确排除，避免运行时 hook 把整个程序挡在启动前。
-    excludes=['matplotlib'],
+    excludes=[
+        'matplotlib',
+        'torch',
+        'torchvision',
+        'torchaudio',
+        'sentence_transformers',
+        'transformers',
+        'datasets',
+        'accelerate',
+        'pytest',
+        '_pytest',
+        'py',
+        'IPython',
+        'jupyter',
+        'notebook',
+        'tensorboard',
+    ],
     noarchive=False,
     optimize=0,
 )

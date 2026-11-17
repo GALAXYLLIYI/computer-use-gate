@@ -196,6 +196,19 @@ class Retriever:
                     candidate_ids = [i for i in candidate_ids if i in sids]
 
         fine = self._fine_hits(qtext, qvec, k, candidate_ids) if qvec else []
+
+        # v0.6 API裁判重排（可选，AGENTCTL_RERANK=cloud 才启用；默认关闭零影响）。
+        # 启用时取 3 倍深池给裁判（否则好条目根本进不了 k=5 的池子），重排后截回 k。
+        # 裁判缺席/任何异常都原样返回，绝不阻塞召回。
+        if fine and qvec:
+            try:
+                from .rerank import enabled as _rr_on, maybe_rerank
+                if _rr_on():
+                    deep = self._fine_hits(qtext, qvec, max(k * 3, 15), candidate_ids)
+                    fine = (maybe_rerank(qtext, deep) or fine)[:k]
+            except Exception:  # noqa: BLE001
+                pass
+
         segs = self._segment_hits(qvec, subject=subject) if qvec else []
         wfs = self._workflow_hits(qtext)
 
