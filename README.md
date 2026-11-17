@@ -3,8 +3,9 @@
 **Windows 桌面 Agent 的安全闸。**<br>
 AI 不点头不动手；点错能拦；动完能验；事后能回放。
 
-> 🎬 60 秒 demo 正在录制：错误窗口被拦 → 授权 → 动作验证 → 哈希链 → 急停。<br>
-> 分镜脚本见 [`docs/demo-60s-script.md`](docs/demo-60s-script.md)。
+https://github.com/GALAXYLLIYI/computer-use-gate/raw/main/assets/demo-60s.mp4
+
+*60 秒 demo：错误窗口被拦 → 授权 → 动作验证 → 哈希链 → 急停。分镜脚本见 [`docs/demo-60s-script.md`](docs/demo-60s-script.md)。*
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 ![Platform](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D6)
@@ -49,6 +50,7 @@ pwsh -File .\install.ps1
 
 - **Default-deny**: nothing moves until you enter the authorization key and click Authorize. A pass lasts 30 minutes or 60 actions.
 - **Layered perception**: UI Automation → Windows OCR → CDP → icon matching; a VLM is a default-off last resort.
+- **Continuous vision (retina)**: a background daemon watches a window at ~5 fps — block-level pixel diff, a stability gate (change / stable / blank), and window-level events (opened / closed / focus) with completeness-gated diffing; buffered frames are queryable after the fact.
 - **Post-action verification**: the screen must change; “no change” and “unobservable” are not success.
 - **Evidence chain**: before/after screenshots, hash-chained log, replay video, one-key stop (`Ctrl+Alt+Home`).
 
@@ -202,6 +204,23 @@ UIA、OCR、图标反查都看不见的场景（游戏画面、Canvas 自绘、�
 
 ---
 
+## 实时视觉与持续视觉（retina）
+
+上面的流水线是**实时视觉**：agent 每一步要"看"时，按需走五条通道。除此之外，仓库里还有一个**持续视觉**层（内部代号 retina）——让 agent 不只是"被叫到才看一眼"，而是**持续盯着屏幕**：
+
+- **持续采样**：~5fps 对指定窗口截帧，30 秒滚动缓冲，失败不伪造帧
+- **分块差异 + 稳定性门**：像素 diff 出"变化 / 稳定 / 空白"三种事件，微小动画和光标不触发不打断
+- **窗口级事件**（2026-11-17 新增）：枚举窗口清单做结构 diff，报出 `window_opened` / `window_closed` / `focus_changed`——像素 diff 只看得见"画面变了"，看不见"窗口消失了"；不完整采样不做差分（防假事件），(hwnd, pid) 二元组身份防句柄回收误报
+- **隐私纪律**：启动要 A 级通行证，敏感窗口 fail-closed，事件流只存结构化字段不存图
+
+MCP 工具：`ctl_retina_status`（看状态）/ `ctl_retina_changes`（读事件）/ `ctl_retina_snapshot`（取缓冲内的任意一帧，包括"刚刚闪过的"）。
+
+设计与路线图见 [`docs/retina-memory-architecture.md`](docs/retina-memory-architecture.md)（连续视觉三层设计与记忆层规划）、[`docs/retina-l0-lite.md`](docs/retina-l0-lite.md)（L0-lite 实现自述）、[`docs/vision_theory.md`](docs/vision_theory.md)（理论文档）。
+
+> 🚧 **进行中**：事件触发理解（stable 后自动走五通道）、`rewatch(t1,t2)`（对缓冲历史段回看）、区域订阅（`watch(region, 谓词)`）、视觉 episode 记忆层。
+
+---
+
 ## 任何 AI 都能接
 
 同一套工具，提供三种接法。**支持 MCP 的 AI 直接接；不支持的，用 HTTP 或命令行也能调。**
@@ -290,6 +309,7 @@ print(requests.post(f"{api}/perceive/windows", json={}, headers=headers).json())
 | 类别 | 工具 | 用来做什么 |
 |---|---|---|
 | 👀 **看** | `ctl_windows` `ctl_shot` `ctl_tree` `ctl_find` `ctl_screen` | 列出窗口；截图（窗口被挡住也能截）；读控件名称和位置；按文字找按钮；OCR 认字 |
+| 📡 **盯** | `ctl_retina_status` `ctl_retina_changes` `ctl_retina_snapshot` | 持续视觉：后台盯屏的事件流（变化/稳定/窗口开闭/焦点切换）；取缓冲内任意一帧（包括刚闪过的） |
 | 🖱 **动** | `ctl_click` `ctl_type` `ctl_fill` `ctl_scroll` `ctl_keys` `ctl_focus` | 点击、打字（中文直接输入）、一步填好输入框、滚动、快捷键、切换窗口 |
 | 🌐 **网页** | `ctl_browser` | 通过 CDP 读网页文字、找元素、精确滚动 |
 | 🛡 **管** | `ctl_authorize` `ctl_lease` `ctl_brake` `ctl_preflight` `ctl_status` | 申请授权、一次只让一个 AI 动手、急停、动手前体检、查状态 |
@@ -445,6 +465,7 @@ python -X utf8 tests\_默认关闭_判据.py
 - 设计接近成熟：安全模型、授权租约、帧凭据都经过推演
 - 实现还有欠账，接口还会调整
 - 判据都在维护者自己的电脑上跑过，**外部用户还很少**
+- 2026-11 动向：60 秒 demo 入库；**retina 持续视觉层 L0-lite 落地**（捕获/稳定性门/事件流/窗口级事件，真机端到端已验）；记忆引擎裁判代码入库（rerank，接线中）
 
 所以最需要的，是**你来把它跑坏**。遇到问题请提 Issue，写清版本、复现步骤、看到了什么、期望看到什么。
 
