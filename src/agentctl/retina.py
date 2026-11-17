@@ -153,6 +153,9 @@ class RetinaConfig:
     sensitive_titles: tuple[str, ...] = DEFAULT_SENSITIVE_TITLES
     skip_gate: bool = False
     session_minutes: int = DEFAULT_SESSION_MINUTES
+    # 窗口级事件采样：每 N 帧做一次窗口枚举 diff（0 = 关闭该信号源）。
+    # 5fps × 10 帧 = 每 2 秒一次枚举，成本可忽略（只问窗口管理器要清单）。
+    window_sample_every: int = 10
 
 
 @dataclass
@@ -347,6 +350,10 @@ class RetinaDaemon:
         self._snapshot_resp = Path(config.state_dir) / "snapshot.response"
         self._session: dict = {}
         self._fh = None
+        # 窗口级信号源（agent-desktop signals.rs 模式）：基线 + 帧计数器。
+        # 枚举失败（None）时沿用旧基线、跳过本次 diff——不完整的样本不做差分。
+        self._win_baseline: dict | None = None
+        self._win_frame_count = 0
 
     # ── 生命周期 ────────────────────────────────────────────────
     def start(self) -> None:
@@ -489,8 +496,28 @@ class RetinaDaemon:
                 seq, ts, changed, blank, bbox, ratio,
                 source=result.source,
             )
+            # 窗口级信号源：每 N 帧枚举一次窗口清单做结构 diff，
+            # 与像素事件互补（像素只看得见「变了」，看不见「窗口消失了」）。
+            if self.config.window_sample_every > 0:
+                self._win_frame_count += 1
+                if self._win_frame_count >= self.config.window_sample_every:
+                    self._win_frame_count = 0
+                    try:
+                        from agentctl import window_events
+                        sample = window_events.enumerate_windows()
+                        win_events = window_events.diff_window_sets(self._win_baseline, sample)
+                        self._win_baseline = window_events.merge_baselines(self._win_baseline, sample)
+                        for ev in win_events:
+                            ev["seq"] = seq
+                            ev["ts"] = ts
+                            events.append(ev)
+                    except Exception as win_err:
+                        # 窗口信号源故障不拖垮像素信号源：记一笔，下一帧再试
+                        events.append({"type": "window_sample_error", "error": str(win_err)[:200],
+                                       "seq": seq, "ts": ts})
             for event in events:
-                event["scale"] = round(scale, 4)
+                if "scale" in event or event.get("type") in ("change", "stable", "blank"):
+                    event["scale"] = round(scale, 4)
                 if len(self._events) >= self._events.maxlen:
                     self._events_dropped += 1
                 self._events.append(event)
@@ -504,7 +531,6 @@ class RetinaDaemon:
             self._prev_img = img
             self._write_state_locked()
             return events
-
     def _serve_snapshot_request(self) -> None:
         """文件式 IPC：MCP 写 snapshot.request，daemon 把最新/指定帧写到受控目录。"""
         if not self._snapshot_req.exists():
