@@ -3735,7 +3735,7 @@ def _eid_recheck(hwnd: int, feat: dict, walk: dict, need_keys: bool = False):
     ★ 快路（默认）：provider 侧按「控件类型」精确定位候选集，客户端再做
       「类型+名字+矩形」三重全等（`_text_of` 文本链与 roles 保留谓词逐字镜像，
       见 `_eid_locate_fast`）—— 不再为一次复核扫全树（M17-B 实测全树 walk
-      129.9ms@110 节点，`docs\\实测_M17B_UIA与抓帧_20221022.md` §一）。
+      129.9ms@110 节点）。
     ★ need_keys=True（调用方给了 expect_uid，要 uid 对账）⇒ 必须走全树：
       struct_key 是「签发口径的 walk 骨架」上的结构路径（`_screen_struct_keys`），
       精确定位给不出全树骨架 ⇒ 这条路**语义优先**，照旧全走。

@@ -22,7 +22,7 @@
 
 ★ 线程安全：所有写入/读取都过同一把 `threading.Lock` ⇒ 8 线程并发写不丢计数。
 
-★ 用法（先看这个，再看 docs\\耗时归因_20261025.md）：
+★ 用法：
       from agentctl import profiling
       with profiling.span("dispatch.total"):
           ...

@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     p_rl = sub.add_parser(
         "record-lessons", help="教训 JSONL → episodes（去重合并 + 断点续收 + promote 收尾）"
     )
-    p_rl.add_argument("file", help="教训 JSONL 路径（格式见 docs/lessons_jsonl_v1.md）")
+    p_rl.add_argument("file", help="教训 JSONL 路径（每行一个教训对象，字段见 intake.ingest_lessons）")
     p_rl.add_argument("--no-promote", action="store_true", help="跳过 promote 收尾（调试用）")
     p_rl.add_argument("--cursor", default=None, help="游标文件路径（默认 <file>.cursor）")
 

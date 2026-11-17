@@ -18,7 +18,7 @@ day loop 每 40 秒 feed 一次同文本）。展示端去重治不了**存储**
    （结论可以演进），首次出现时间保留在 `verify.cred.first_t`，旧出处挪到 `verify.cred.first_cred`。
    outcome 进键 ⇒ 同一事件先 failed 后 success 是**新信息**（两行各自成立）。
 
-2. `ingest_lessons(store, path)` —— 教训 JSONL 适配器（格式见 `docs/lessons_jsonl_v1.md`）：
+2. `ingest_lessons(store, path)` —— 教训 JSONL 适配器：
    逐行校验 → `record_experience(source='session', actor=行里的 actor)` → 游标断点续收 → promote 收尾。
    **硬规矩**：`outcome=success` 必须带 `verify.cred.file`（哪份报告/哪个脚本）；无出处的教训
    只能标 unobservable/failed。没验证过就标 unobservable —— 不许把「我觉得成了」写成成功。

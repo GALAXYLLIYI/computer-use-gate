@@ -38,13 +38,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
-#: M11 基线（docs\实测_动作链分段_20221022.md，维护者已复核）
+#: M11 基线（维护者已复核）
 BASE_LO = 1682.0
 BASE_HI = 1718.0
 #: 合并的可接受收益下限（维护者裁：200~340ms/次）
 MERGE_SAVE_MIN = 200.0
 #: ★ **独立自洽性检查的锚点**：「core 再等第二遍」这件事**最多**能省多少 ms
-#:   —— M11 实测 core 侧 wait_change = **321~343ms**（docs\实测_动作链分段_20221022.md）。
+#:   —— M11 实测 core 侧 wait_change = **321~343ms**。
 #:   这个数**独立于本次测量**（上一单的实测）⇒ 用它给端到端的降幅设**物理上限**：
 #:   合并最多只能省掉「第二遍」⇒ 端到端降幅 **> 343ms ⇒ 必然是假账**。
 CORE_SECOND_PASS_MAX_MS = 343.0
