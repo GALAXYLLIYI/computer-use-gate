@@ -292,3 +292,16 @@ desktop.ini
 !assets/agentctl_64.png
 # make_icon.py 随资产一起进仓，否则干净克隆无法重打 ICO
 !tools/make_icon.py
+
+# ── 2026-11-17：demo 录制残留与 retina 构建产物 ──
+#   ffmpeg 日志/pid 是录屏过程的运行残留；demo-build 是剪辑中间产物；
+#   demo-raw-*.mp4 是原始素材（留本机，成片 demo-60s.mp4 进仓）。
+assets/demo-*ffmpeg.log
+assets/demo-*.pid
+assets/demo-build/
+assets/demo-raw-*.mp4
+#   retina 的 PyInstaller 构建目录（AgentCtl 打包产物同源，不进仓）
+build_retina/
+dist_retina/
+#   deploy/ 全是本机绝对路径（F:\…、C:\Users\…）——按「不泄露本机布局」铁律不进仓
+deploy/
